@@ -1,0 +1,22 @@
+# Ignore everything
+*
+
+# Don't ignore directories, so we can recurse into them
+!*/
+
+# Except
+!.gitattributes
+!.gitignore
+!.gitconfig
+!*.cs
+!*.csproj
+!*.DotSettings
+!*.sln
+!*.json
+!*.md
+!*.snk
+bin/
+obj/
+project.lock.json
+/.vs/
+/.vscode/
