@@ -15,8 +15,10 @@
 !*.json
 !*.md
 !*.snk
+!*.bat
+!*.sh
 bin/
 obj/
-project.lock.json
 /.vs/
 /.vscode/
+Version.targets

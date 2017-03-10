@@ -53,6 +53,7 @@ To build from Visual Studio you'll need VS 2017.
 Assuming you have the .NET Core build tools installed, building the library from the command-line just involves:
 
 ```
+dotnet restore
 dotnet build
 ```
 
