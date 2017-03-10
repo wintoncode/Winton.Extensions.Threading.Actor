@@ -5,15 +5,16 @@
 
 set -euo pipefail;
 
-VERSION_AND_PUBLISH="false";
+VERSION_AND_PUBLISH="true";
 
-while getopts v option;
-do
-    case "${option}"
-    in
-            v) VERSION_AND_PUBLISH="true";;
-    esac
-done;
+if [ "${TRAVIS_PULL_REQUEST:-}" == "true" ]; then
+    echo "WARN: Skipping versioning."
+    echo
+else
+    echo "Versioning ..."
+    ./etc/scripts/write_version_targets.sh
+    echo
+fi
 
 echo "Cleaning ..."
 dotnet clean
@@ -23,24 +24,15 @@ echo "Restoring ..."
 dotnet restore
 echo
 
-if [[ "$VERSION_AND_PUBLISH" == "true" ]]; then
-    echo "Versioning ..."
-    (cd etc/scripts && ./write_version_targets.sh)
-    echo
-else
-    echo "WARN: Skipping versioning."
-    echo
-fi
-
 echo "Building ..."
-dotnet build --configuration Release
+dotnet build ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --configuration Release --framework netstandard1.3
 echo
 
 echo "Testing ..."
-(cd Winton.Extensions.Threading.Actor.Tests.Unit && dotnet test --no-build --configuration Release)
+dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --configuration Release --framework netcoreapp1.0
 echo
 
-if [[ "$VERSION_AND_PUBLISH" == "true" ]]; then
+if [ "${TRAVIS:-}" != "true" ]; then
     echo "Packing ..."
-    (cd Winton.Extensions.Threading.Actor && dotnet pack --no-build --configuration Release)
+    dotnet pack ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --no-build --configuration Release
 fi

@@ -8,22 +8,20 @@ set -euo pipefail
 GIT=$(which git)
 
 # Outputs to stdout the the assembly version in the form major.0.0.0.
-# If no version is passed in then one is determined using git describe --tags
-
-desc_cmd="$GIT describe --tags";
 
 case "$#" in
     1)
-        desc="$1";
+        commitish="$1";
     ;;
     0)
-        desc="$($desc_cmd)";
+        commitish="HEAD"
     ;;
     *)
-        echo "Usage: $0 [<version>]";
+        echo "Usage: $0 [<commit-ish>]";
         exit 1;
 esac;
 
+desc="$($GIT describe --tags --exact-match --match='[0-9]*.[0-9]*.[0-9]*' $commitish 2>/dev/null || echo "0")";
 major="${desc%%.*}";
 
 echo "$major.0.0.0";

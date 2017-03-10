@@ -1,28 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Condition="Exists('../travis.props')" Project="../travis.props" />
+
   <PropertyGroup>    
-    <TargetFrameworks>netcoreapp1.1;net462</TargetFrameworks>    
+    <TargetFrameworks>netcoreapp1.0;net451</TargetFrameworks>
     <SignAssembly>True</SignAssembly>    
+    <DelaySign>False</DelaySign>    
     <AssemblyOriginatorKeyFile>../keys/Winton.Extensions.Threading.Actor.snk</AssemblyOriginatorKeyFile>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netcoreapp1.1|AnyCPU'">
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-    <TreatSpecificWarningsAsErrors />
-    <NoWarn>1701;1702;1705;CS8002</NoWarn>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netcoreapp1.1|AnyCPU'">
-    <NoWarn>1701;1702;1705;CS8002</NoWarn>
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-    <TreatSpecificWarningsAsErrors />
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="4.19.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
     <PackageReference Include="Moq" Version="4.7.1" />
-    <PackageReference Include="Shouldly" Version="2.8.2" />
     <PackageReference Include="xunit" Version="2.2.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.2.0" />
   </ItemGroup>

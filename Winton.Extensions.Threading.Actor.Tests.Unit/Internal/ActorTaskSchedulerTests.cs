@@ -5,8 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentAssertions;
 using Moq;
-using Shouldly;
 using Winton.Extensions.Threading.Actor.Internal;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
@@ -54,8 +54,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             barrier.SetResult(true);
             ThrowIfWaitTimesOut(task2);
 
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once));
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -68,10 +68,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             shortTask.Start(_scheduler);
             longTask.Start(_scheduler);
             barrier.SetResult(true);
-            Should.CompleteIn(longTask, _waitTimeout);
 
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Once));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once));
+            longTask.AwaitingShouldCompleteIn(_waitTimeout);
+
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -80,20 +81,20 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var task = _actorTaskFactory.Create(() => { }, CancellationToken.None, TaskCreationOptions.LongRunning);
             task.Start(_scheduler);
             ThrowIfWaitTimesOut(task);
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once));
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
         public void ForLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
         {
-            Actor.CurrentId.ShouldBe(ActorId.None);
+            Actor.CurrentId.Should().Be(ActorId.None);
             var actorIdOnWorkThread = new ActorId();
             var task = _actorTaskFactory.Create(() => { actorIdOnWorkThread = Actor.CurrentId; }, CancellationToken.None, TaskCreationOptions.None);
             task.Start(_scheduler);
             ThrowIfWaitTimesOut(task);
-            Actor.CurrentId.ShouldBe(ActorId.None);
-            actorIdOnWorkThread.ShouldBe(_actorId);
+            Actor.CurrentId.Should().Be(ActorId.None);
+            actorIdOnWorkThread.Should().Be(_actorId);
         }
 
         [Fact]
@@ -108,8 +109,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             barrier.SetResult(true);
             ThrowIfWaitTimesOut(task2);
 
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Exactly(2)));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Never));
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Exactly(2))).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Never)).ShouldNotThrow();
         }
 
         [Fact]
@@ -124,8 +125,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             barrier.SetResult(true);
             ThrowIfWaitTimesOut(task2);
 
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once));
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Never)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -134,20 +135,20 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var task = _actorTaskFactory.Create(() => { }, CancellationToken.None, TaskCreationOptions.None);
             task.Start(_scheduler);
             ThrowIfWaitTimesOut(task);
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Once));
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Never));
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Once)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnNonThreadPoolThread(It.IsAny<Action>()), Times.Never)).ShouldNotThrow();
         }
 
         [Fact]
         public void ForNonLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
         {
-            Actor.CurrentId.ShouldBe(ActorId.None);
+            Actor.CurrentId.Should().Be(ActorId.None);
             var actorIdOnWorkThread = new ActorId();
             var task = _actorTaskFactory.Create(() => { actorIdOnWorkThread = Actor.CurrentId; }, CancellationToken.None, TaskCreationOptions.None);
             task.Start(_scheduler);
             ThrowIfWaitTimesOut(task);
-            Actor.CurrentId.ShouldBe(ActorId.None);
-            actorIdOnWorkThread.ShouldBe(_actorId);
+            Actor.CurrentId.Should().Be(ActorId.None);
+            actorIdOnWorkThread.Should().Be(_actorId);
         }
 
         [Theory]
@@ -175,7 +176,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             barrier.SetResult(true);
 
-            Should.CompleteIn(terminalTask, _waitTimeout);
+            terminalTask.AwaitingShouldCompleteIn(_waitTimeout);
 
             if (lateScheduleType == LateScheduleType.AfterTerminalTaskComplete)
             {
@@ -183,16 +184,17 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 lateTask.Start(_scheduler);
             }
 
-            lateTask.Wait(TimeSpan.FromSeconds(2)).ShouldBeFalse();
+            lateTask.Wait(TimeSpan.FromSeconds(2)).Should().BeFalse();
         }
 
         [Fact]
         public void ShouldFailMiserablyIfTryToScheduleTaskThatIsNotAnActorTask()
         {
             var offensiveTask = new Task(() => { });
-            Should.Throw<TaskSchedulerException>(() => offensiveTask.Start(_scheduler))
-                  .InnerException.ShouldBeOfType<InvalidOperationException>()
-                  .Message.ShouldBe("Task is not an actor task.");
+            Expect.That(() => offensiveTask.Start(_scheduler))
+                  .ShouldThrow<TaskSchedulerException>()
+                  .WithInnerException<InvalidOperationException>()
+                  .WithInnerMessage("Task is not an actor task.");
         }
 
         [Fact]
@@ -257,8 +259,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             await await task;
 
-            actorWorkIds.ShouldAllBe(x => x == _actorId);
-            offActorWorkIds.ShouldAllBe(x => x == ActorId.None);
+            actorWorkIds.Should().OnlyContain(x => x == _actorId);
+            offActorWorkIds.Should().OnlyContain(x => x == ActorId.None);
         }
 
         [Fact]
@@ -282,8 +284,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             fixableUtcTimeSource.Increment(TimeSpan.FromMilliseconds(250));
             barrier.SetResult(true);
 
-            Should.CompleteIn(task2, _waitTimeout);
-            Should.NotThrow(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Exactly(2)));
+            task2.AwaitingShouldCompleteIn(_waitTimeout);
+
+            Expect.That(() => Mock.Get(_workItemQueuer).Verify(x => x.QueueOnThreadPoolThread(It.IsAny<Action>()), Times.Exactly(2))).ShouldNotThrow();
         }
 
         private static void LaunchOnNonThreadPoolThread(Action action)

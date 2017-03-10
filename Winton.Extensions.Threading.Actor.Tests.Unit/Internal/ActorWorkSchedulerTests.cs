@@ -8,7 +8,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Moq;
-using Shouldly;
+using FluentAssertions;
 using Winton.Extensions.Threading.Actor.Internal;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
@@ -52,20 +52,16 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             {
                 case WorkType.Sync:
                 {
-                    var work = (Action)(() => times.Add(_utcTimeSource.Current));
-
-                    _scheduler.Schedule(work, interval);
+                    _scheduler.Schedule(() => times.Add(_utcTimeSource.Current), interval);
                 }
                     break;
                 case WorkType.Async:
                 {
-                    var work = (Func<Task>)(async () =>
-                                            {
-                                                await Task.Yield();
-                                                times.Add(_utcTimeSource.Current);
-                                            });
-
-                    _scheduler.Schedule(work, interval);
+                    _scheduler.Schedule(async () =>
+                                        {
+                                            await Task.Yield();
+                                            times.Add(_utcTimeSource.Current);
+                                        }, interval);
                 }
                     break;
                 default:
@@ -76,10 +72,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             {
                 _utcTimeSource.Increment(halfInterval);
                 _utcTimeSource.Increment(halfInterval);
-                Within.FiveSeconds(() => times.Count.ShouldBe(i + 1));
+                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
             }
 
-            times.ShouldBe(expectedTimes);
+            times.Should().Equal(expectedTimes);
         }
 
         [Theory]
@@ -95,36 +91,28 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (workType)
             {
                 case WorkType.Sync:
-                {
-                    var work = (Action)(() => times.Add(_utcTimeSource.Current));
-
-                    _scheduler.Schedule(work, interval, ActorScheduleOptions.NoInitialDelay);
-                }
+                    _scheduler.Schedule(() => times.Add(_utcTimeSource.Current), interval, ActorScheduleOptions.NoInitialDelay);
                     break;
                 case WorkType.Async:
-                {
-                    var work = (Func<Task>)(async () =>
-                                            {
-                                                await Task.Yield();
-                                                times.Add(_utcTimeSource.Current);
-                                            });
-
-                    _scheduler.Schedule(work, interval, ActorScheduleOptions.NoInitialDelay);
-                }
+                    _scheduler.Schedule(async () =>
+                                        {
+                                            await Task.Yield();
+                                            times.Add(_utcTimeSource.Current);
+                                        }, interval, ActorScheduleOptions.NoInitialDelay);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Within.OneSecond(() => times.Count.ShouldBe(1));
+            Within.OneSecond(() => times.Count.Should().Be(1));
 
             for (var i = 0; i < expectedTimes.Count - 1; i++)
             {
                 _utcTimeSource.Increment(interval);
-                Within.OneSecond(() => times.Count.ShouldBe(i + 2));
+                Within.OneSecond(() => times.Count.Should().Be(i + 2));
             }
 
-            times.ShouldBe(expectedTimes);
+            times.Should().Equal(expectedTimes);
         }
 
         [Theory]
@@ -140,14 +128,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 {
                     var work = (Action)(() => { });
                     _scheduler.Schedule(work, TimeSpan.FromMilliseconds(100), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-                    Within.FiveSeconds(() => Should.NotThrow(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)));
+                    Within.FiveSeconds(() => Expect.That(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)).ShouldNotThrow());
                 }
                     break;
                 case WorkType.Async:
                 {
                     var work = (Func<Task>)(async () => { await Task.Yield(); });
                     _scheduler.Schedule(work, TimeSpan.FromMilliseconds(100), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-                    Within.FiveSeconds(() => Should.NotThrow(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)));
+                    Within.FiveSeconds(() => Expect.That(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)).ShouldNotThrow());
                 }
                     break;
                 default:
@@ -184,15 +172,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             _utcTimeSource.Increment(interval);
 
-            Within.OneSecond(() => output.ShouldBe(Enumerable.Repeat("one", 1)));
+            Within.OneSecond(() => output.Should().Equal(Enumerable.Repeat("one", 1)));
 
             _scheduler.CancelCurrent();
 
             _utcTimeSource.Increment(interval);
 
-            For.OneSecond(() => output.Count.ShouldBe(1));
+            For.OneSecond(() => output.Count.Should().Be(1));
 
-            task.IsCanceled.ShouldBeTrue();
+            task.IsCanceled.Should().BeTrue();
         }
 
         [Theory]
@@ -227,7 +215,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             _utcTimeSource.Increment(interval);
 
-            Within.FiveSeconds(() => output.Count.ShouldBe(1));
+            Within.FiveSeconds(() => output.Count.Should().Be(1));
 
             switch (workType2)
             {
@@ -247,10 +235,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             _utcTimeSource.Increment(interval);
 
-            Within.FiveSeconds(() => output.Count.ShouldBe(2));
+            Within.FiveSeconds(() => output.Count.Should().Be(2));
 
-            output.ShouldBe(new[] { "one", "two" });
-            task.IsCanceled.ShouldBeTrue();
+            output.Should().Equal("one", "two");
+            task.IsCanceled.Should().BeTrue();
         }
 
         [Theory]
@@ -268,35 +256,27 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (workType)
             {
                 case WorkType.Sync:
-                {
-                    var work = (Action)(() =>
-                                        {
-                                            times.Add(_utcTimeSource.Current);
+                    task = _scheduler.Schedule(() =>
+                                               {
+                                                   times.Add(_utcTimeSource.Current);
 
-                                            if (times.Count == 3)
-                                            {
-                                                throw new InvalidOperationException("Pah!");
-                                            }
-                                        });
-
-                    task = _scheduler.Schedule(work, interval, ActorScheduleOptions.Default, x => emittedException = x);
-                }
+                                                   if (times.Count == 3)
+                                                   {
+                                                       throw new InvalidOperationException("Pah!");
+                                                   }
+                                               }, interval, ActorScheduleOptions.Default, x => emittedException = x);
                     break;
                 case WorkType.Async:
-                {
-                    var work = (Func<Task>)(async () =>
-                                            {
-                                                await Task.Yield();
-                                                times.Add(_utcTimeSource.Current);
+                    task = _scheduler.Schedule(async () =>
+                                               {
+                                                   await Task.Yield();
+                                                   times.Add(_utcTimeSource.Current);
 
-                                                if (times.Count == 3)
-                                                {
-                                                    throw new InvalidOperationException("Pah!");
-                                                }
-                                            });
-
-                    task = _scheduler.Schedule(work, interval, ActorScheduleOptions.Default, x => emittedException = x);
-                }
+                                                   if (times.Count == 3)
+                                                   {
+                                                       throw new InvalidOperationException("Pah!");
+                                                   }
+                                               }, interval, ActorScheduleOptions.Default, x => emittedException = x);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
@@ -305,15 +285,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             for (var i = 0; i < expectedTimes.Count; i++)
             {
                 _utcTimeSource.Increment(interval);
-                Within.FiveSeconds(() => times.Count.ShouldBe(i + 1));
+                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
             }
 
-            times.ShouldBe(expectedTimes);
-            emittedException.ShouldBeOfType<InvalidOperationException>().Message.ShouldBe("Pah!");
+            times.Should().Equal(expectedTimes);
+            emittedException.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Be("Pah!");
 
             _scheduler.CancelCurrent();
 
-            Within.FiveSeconds(() => task.IsCanceled.ShouldBeTrue());
+            Within.FiveSeconds(() => task.IsCanceled.Should().BeTrue());
         }
 
         [Theory]
@@ -331,33 +311,29 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             {
                 case WorkType.Sync:
                 {
-                    var work = (Action)(() =>
-                                        {
-                                            times.Add(_utcTimeSource.Current);
+                    task = _scheduler.Schedule(() =>
+                                               {
+                                                   times.Add(_utcTimeSource.Current);
 
-                                            if (times.Count == 3)
-                                            {
-                                                throw new Exception("Pah!");
-                                            }
-                                        });
-
-                    task = _scheduler.Schedule(work, interval, ActorScheduleOptions.NoInitialDelay);
+                                                   if (times.Count == 3)
+                                                   {
+                                                       throw new Exception("Pah!");
+                                                   }
+                                               }, interval, ActorScheduleOptions.NoInitialDelay);
                 }
                     break;
                 case WorkType.Async:
                 {
-                    var work = (Func<Task>)(async () =>
-                                            {
-                                                await Task.Yield();
-                                                times.Add(_utcTimeSource.Current);
+                    task = _scheduler.Schedule(async () =>
+                                               {
+                                                   await Task.Yield();
+                                                   times.Add(_utcTimeSource.Current);
 
-                                                if (times.Count == 3)
-                                                {
-                                                    throw new Exception("Pah!");
-                                                }
-                                            });
-
-                    task = _scheduler.Schedule(work, interval, ActorScheduleOptions.NoInitialDelay);
+                                                   if (times.Count == 3)
+                                                   {
+                                                       throw new Exception("Pah!");
+                                                   }
+                                               }, interval, ActorScheduleOptions.NoInitialDelay);
                 }
                     break;
                 default:
@@ -367,45 +343,49 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             // Should hit exception on final loop of this
             for (var i = 0; i < expectedTimes.Count - 1; i++)
             {
-                Within.FiveSeconds(() => times.Count.ShouldBe(i + 1));
+                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
                 _utcTimeSource.Increment(interval);
             }
 
-            Should.Throw<Exception>(async () => await task).Message.ShouldBe("Pah!");
+            Expect.That(async () => await task).ShouldThrow<Exception>().WithMessage("Pah!");
 
             // The schedule should have been cancelled so these should have no effect.
             _utcTimeSource.Increment(interval);
             _utcTimeSource.Increment(interval);
 
-            Within.FiveSeconds(() => times.ShouldBe(expectedTimes));
+            Within.FiveSeconds(() => times.Should().Equal(expectedTimes));
         }
 
         [Fact]
         public void SynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
-            Should.Throw<ArgumentOutOfRangeException>(() => _scheduler.Schedule(() => { }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .ParamName.ShouldBe("interval");
+            Expect.That(() => _scheduler.Schedule(() => { }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
+                  .ShouldThrow<ArgumentOutOfRangeException>()
+                  .And.ParamName.Should().Be("interval");
         }
 
         [Fact]
         public void SynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
-            Should.Throw<ArgumentNullException>(() => _scheduler.Schedule((Action)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .ParamName.ShouldBe("work");
+            Expect.That(() => _scheduler.Schedule((Action)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
+                  .ShouldThrow<ArgumentNullException>()
+                  .And.ParamName.Should().Be("work");
         }
 
         [Fact]
         public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
-            Should.Throw<ArgumentOutOfRangeException>(() => _scheduler.Schedule(async () => { await Task.Delay(10); }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .ParamName.ShouldBe("interval");
+            Expect.That(() => _scheduler.Schedule(async () => { await Task.Delay(10); }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
+                  .ShouldThrow<ArgumentOutOfRangeException>()
+                  .And.ParamName.Should().Be("interval");
         }
 
         [Fact]
         public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
-            Should.Throw<ArgumentNullException>(() => _scheduler.Schedule((Func<Task>)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .ParamName.ShouldBe("work");
+            Expect.That(() => _scheduler.Schedule((Func<Task>)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
+                  .ShouldThrow<ArgumentNullException>()
+                  .And.ParamName.Should().Be("work");
         }
 
         private void SetUpActor(WorkType workType)

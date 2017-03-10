@@ -7,13 +7,40 @@ set -euo pipefail
 
 GIT=$(which git)
 
-# Tries to determines a version similar to that output by GitVersion
+# Tries to determine a version similar to that output by GitVersion
 
-# If a tag is checked out or we're bang on a tag anyway then getting the exact match
-# will set branch to the version number. This will mean that below the branch is
-# treated as a release no matter what the true name of the branch is.
-branch="$($GIT describe --tags --exact-match --match='[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || $GIT symbolic-ref -q --short HEAD)";
-desc="$($GIT describe --tags --long --match='[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo '0.0.0-0')";
+case "$#" in
+    1)
+        commitish="$1";
+    ;;
+    0)
+        commitish="HEAD"
+    ;;
+    *)
+        echo "Usage: $0 [<commit-ish>]";
+        exit 1;
+esac;
+
+# Branch name:
+# 1. If a tag is checked out or we're bang on a tag anyway then getting the exact match
+#    will set branch to the version number. This will mean that below the branch is
+#    treated as a release no matter what the true name of the branch is.
+# 2. Failing that, try to get the branch name using symbolic-ref
+# 3. ... but that won't work for detached heads so first try TRAVIS_BRANCH in case we're on Travis
+# 4. ... and if this isn't Travis try Appveyor
+# 4. ... and if this isn't Appveyor try to use git describe to get something even if it's just a sha
+# 5. ... but sometimes despite the --always, even that  will fail so just output the commitish.
+branch="$($GIT describe --tags --exact-match --match='[0-9]*.[0-9]*.[0-9]*' $commitish 2>/dev/null || $GIT symbolic-ref -q --short HEAD || echo ${TRAVIS_BRANCH:-})";
+
+if [[ -z $branch ]]; then
+    branch="${APPVEYOR_REPO_BRANCH}"
+fi;
+
+if [[ -z $branch ]]; then
+    branch="$($GIT describe --all --exact-match --always $commitish 2>/dev/null || echo $commitish)";
+fi;
+
+desc="$($GIT describe --tags --long --match='[0-9]*.[0-9]*.[0-9]*' $commitish 2>/dev/null || echo '0.0.0-0')";
 current_version="${desc%%-*}";
 branch_type="${branch%/*}";
 branch_short_name="${branch#*/}";

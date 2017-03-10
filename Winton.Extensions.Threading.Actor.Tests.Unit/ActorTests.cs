@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Moq;
-using Shouldly;
+using FluentAssertions;
 using Winton.Extensions.Threading.Actor.Internal;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
@@ -65,18 +65,17 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         public void ShouldBeAbleToEnqueueBasicNonVoidTaskAndAwaitItsReturn()
         {
             var actor = CreateActor();
-            var task = actor.Enqueue(() => true);
-            Should.CompleteIn(task, _waitTimeout).ShouldBeTrue();
+            actor.Enqueue(() => true).AwaitingShouldCompleteIn(_waitTimeout).And.Should().BeTrue();
         }
 
         [Fact]
-        public void ShouldBeAbleToEnqueueBasicVoidTaskAndAwaitItsReturn()
+        public async Task ShouldBeAbleToEnqueueBasicVoidTaskAndAwaitItsReturn()
         {
             var actor = CreateActor();
             var ran = false;
 
-            Should.CompleteIn(actor.Enqueue(() => { ran = true; }), _waitTimeout);
-            ran.ShouldBeTrue();
+            await actor.Enqueue(() => { ran = true; });
+            ran.Should().BeTrue();
         }
 
         [Fact]
@@ -96,9 +95,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                             .ContinueWith(y => output.Add(y.Result), TaskContinuationOptions.ExecuteSynchronously))
                           .ToArray();
 
-            Should.CompleteIn(Task.WhenAll(tasks), _waitTimeout);
+            Task.WhenAll(tasks).AwaitingShouldCompleteIn(_waitTimeout);
 
-            output.ShouldBe(Enumerable.Range(1, 50));
+            output.Should().Equal(Enumerable.Range(1, 50));
         }
 
         [Fact]
@@ -117,9 +116,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                                      }))
                           .ToArray();
 
-            Should.CompleteIn(Task.WhenAll(tasks), _waitTimeout);
+            Task.WhenAll(tasks).AwaitingShouldCompleteIn(_waitTimeout);
 
-            output.ShouldBe(Enumerable.Range(1, 50));
+            output.Should().Equal(Enumerable.Range(1, 50));
         }
 
         [Fact]
@@ -128,7 +127,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             var actor = CreateActor();
             var task = actor.Enqueue(() => TaskScheduler.Current);
 
-            Should.CompleteIn(task, _waitTimeout).ShouldBe(TaskScheduler.Default);
+            task.AwaitingShouldCompleteIn(_waitTimeout).And.Should().Be(TaskScheduler.Default);
         }
 
         [Fact]
@@ -137,9 +136,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             var actor = CreateActor();
             var taskScheduler = default(TaskScheduler);
 
-            Should.CompleteIn(actor.Enqueue(() => { taskScheduler = TaskScheduler.Current; }), _waitTimeout);
+            actor.Enqueue(() => { taskScheduler = TaskScheduler.Current; }).AwaitingShouldCompleteIn(_waitTimeout);
 
-            taskScheduler.ShouldBe(TaskScheduler.Default);
+            taskScheduler.Should().Be(TaskScheduler.Default);
         }
 
         [Theory]
@@ -214,16 +213,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                    stageOrder.Add("Slept");
                                });
 
-            Should.CompleteIn(Task.WhenAll(task1, task2), _waitTimeout);
+            Task.WhenAll(task1, task2).AwaitingShouldCompleteIn(_waitTimeout);
 
-            actor1TaskSchedulers.ShouldNotBeEmpty();
-            actor1TaskSchedulers.ShouldAllBe(x => ReferenceEquals(x, TaskScheduler.Default));
-            stageOrder.ShouldBe(expectedStageOrder);
-            actor1CurrentActorIds.ShouldNotBeEmpty();
-            actor1CurrentActorIds.ShouldAllBe(x => x == actor1.Id);
-            nonActor1CurrentActorIds.ShouldNotBeEmpty();
-            nonActor1CurrentActorIds.ShouldAllBe(x => x != actor1.Id);
-            task1.Result.ShouldBe(37 * 345);
+            actor1TaskSchedulers.Should().NotBeEmpty().And.OnlyContain(x => ReferenceEquals(x, TaskScheduler.Default));
+            stageOrder.Should().Equal(expectedStageOrder);
+            actor1CurrentActorIds.Should().NotBeEmpty().And.OnlyContain(x => x == actor1.Id);
+            nonActor1CurrentActorIds.Should().NotBeEmpty().And.OnlyContain(x => x != actor1.Id);
+            task1.Result.Should().Be(37 * 345);
         }
 
         [Theory]
@@ -300,15 +296,12 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                    stageOrder.Add("Slept");
                                });
 
-            Should.CompleteIn(Task.WhenAll(task1, task2), _waitTimeout);
+            Task.WhenAll(task1, task2).AwaitingShouldCompleteIn(_waitTimeout);
 
-            actor1TaskSchedulers.ShouldNotBeEmpty();
-            actor1TaskSchedulers.ShouldAllBe(x => ReferenceEquals(x, TaskScheduler.Default));
-            stageOrder.ShouldBe(expectedStageOrder);
-            actor1CurrentActorIds.ShouldNotBeEmpty();
-            actor1CurrentActorIds.ShouldAllBe(x => x == actor1.Id);
-            nonActor1CurrentActorIds.ShouldNotBeEmpty();
-            nonActor1CurrentActorIds.ShouldAllBe(x => x != actor1.Id);
+            actor1TaskSchedulers.Should().NotBeEmpty().And.OnlyContain(x => ReferenceEquals(x, TaskScheduler.Default));
+            stageOrder.Should().Equal(expectedStageOrder);
+            actor1CurrentActorIds.Should().NotBeEmpty().And.OnlyContain(x => x == actor1.Id);
+            nonActor1CurrentActorIds.Should().NotBeEmpty().And.OnlyContain(x => x != actor1.Id);
         }
 
         [Theory]
@@ -331,10 +324,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                               return "moose";
                           }, enqueueOptions);
 
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -350,10 +343,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             var task = actor.Enqueue(() => numbers.Add(3));
             var startTask = actor.Start();
 
-            Should.CompleteIn(startTask, _waitTimeout);
-            Should.CompleteIn(task, _waitTimeout);
+            startTask.AwaitingShouldCompleteIn(_waitTimeout);
+            task.AwaitingShouldCompleteIn(_waitTimeout);
 
-            numbers.ShouldBe(Enumerable.Range(1, 3));
+            numbers.Should().Equal(Enumerable.Range(1, 3));
         }
 
         [Fact]
@@ -378,7 +371,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.Enqueue(() => stageOrder.Add("Work1"));
             actor.Enqueue(() => stageOrder.Add("Work2"));
 
-            Should.CompleteIn(actor.Start(), _waitTimeout);
+            actor.Start().AwaitingShouldCompleteIn(_waitTimeout);
 
             var stopTask = actor.Stop();
             var lateWork = actor.Enqueue(() => stageOrder.Add("Work3"));
@@ -386,9 +379,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             MarkAlreadyStopped();
 
             ShouldBeCancelled(lateWork);
-            Should.CompleteIn(stopTask, _waitTimeout);
+            stopTask.AwaitingShouldCompleteIn(_waitTimeout);
 
-            stageOrder.ShouldBe(expectedStageOrder);
+            stageOrder.Should().Equal(expectedStageOrder);
         }
 
         [Theory]
@@ -453,8 +446,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                return value * 37;
                            });
 
-            Should.CompleteIn(pretrigger.Task, _waitTimeout);
-            stages.ShouldBe(expectedStageOrder.Take(2));
+            pretrigger.Task.AwaitingShouldCompleteIn(_waitTimeout);
+            stages.Should().Equal(expectedStageOrder.Take(2));
 
             var stopTask = actor1.Stop();
             MarkAlreadyStopped();
@@ -463,16 +456,16 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             switch (stopWorkOutcome)
             {
                 case StopWorkOutcome.Completes:
-                    Should.CompleteIn(stopTask, _waitTimeout);
+                    stopTask.AwaitingShouldCompleteIn(_waitTimeout);
                     break;
                 case StopWorkOutcome.Faults:
-                    Should.Throw<InvalidOperationException>(async () => await stopTask).Message.ShouldBe("Never meant to be");
+                    ((Func<Task>)(async () => await stopTask)).ShouldThrow<InvalidOperationException>().WithMessage("Never meant to be");
                     break;
                 default:
                     throw new Exception($"Unhandled test case {stopWorkOutcome}.");
             }
 
-            Within.OneSecond(() => stages.ShouldBe(expectedStageOrder));
+            Within.OneSecond(() => stages.Should().Equal(expectedStageOrder));
 
             // The below would be nice but has proved intractable to achieve.  It seems the async/await syntatic sugar
             // fails to pass on the AsyncState from the initial task so that the associated CancellationTokenSource is
@@ -499,14 +492,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             var task = actor.Enqueue(() => numbers.Add(3));
             var startTask = actor.Start();
 
-            startTask.IsCompleted.ShouldBeFalse();
+            startTask.IsCompleted.Should().BeFalse();
 
             trigger.SetResult(null);
 
-            Should.CompleteIn(startTask, _waitTimeout);
-            Should.CompleteIn(task, _waitTimeout);
+            startTask.AwaitingShouldCompleteIn(_waitTimeout);
+            task.AwaitingShouldCompleteIn(_waitTimeout);
 
-            numbers.ShouldBe(Enumerable.Range(1, 3));
+            numbers.Should().Equal(Enumerable.Range(1, 3));
         }
 
         [Fact]
@@ -532,10 +525,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             MarkAlreadyStopped();
 
-            Should.CompleteIn(startTask, _waitTimeout);
-            Should.CompleteIn(stopTask, _waitTimeout);
+            startTask.AwaitingShouldCompleteIn(_waitTimeout);
+            stopTask.AwaitingShouldCompleteIn(_waitTimeout);
 
-            stageOrder.ShouldBeEmpty();
+            stageOrder.Should().BeEmpty();
 
             ShouldBeCancelled(shouldBeCancelled[0]);
             ShouldBeCancelled(shouldBeCancelled[1]);
@@ -563,10 +556,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.Enqueue(() => stageOrder.Add("Work1"));
             actor.Enqueue(() => stageOrder.Add("Work2"));
 
-            Should.CompleteIn(actor.Start(), _waitTimeout);
-            Should.CompleteIn(actor.Stop(), _waitTimeout);
+            actor.Start().AwaitingShouldCompleteIn(_waitTimeout);
+            actor.Stop().AwaitingShouldCompleteIn(_waitTimeout);
 
-            stageOrder.ShouldBe(expectedStageOrder);
+            stageOrder.Should().Equal(expectedStageOrder);
         }
 
         [Fact]
@@ -591,13 +584,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.Enqueue(() => stageOrder.Add("Work1"));
             actor.Enqueue(() => stageOrder.Add("Work2"));
 
-            var start = actor.Start();
-            var stop = actor.Stop();
+            var startTask = actor.Start();
+            var stopTask = actor.Stop();
 
-            Should.CompleteIn(start, _waitTimeout);
-            Should.CompleteIn(stop, _waitTimeout);
+            startTask.AwaitingShouldCompleteIn(_waitTimeout);
+            stopTask.AwaitingShouldCompleteIn(_waitTimeout);
 
-            stageOrder.ShouldBe(expectedStageOrder);
+            stageOrder.Should().Equal(expectedStageOrder);
         }
 
         [Theory]
@@ -618,7 +611,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             actor.Start();
 
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
         }
 
         [Theory]
@@ -640,7 +633,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.Start();
             actor.Stop();
 
-            Should.NotThrow(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once));
+            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -658,10 +651,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             var task1 = actor.Start();
             var task2 = actor.Start();
 
-            task2.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse("Should not have already completed.");
+            task2.Wait(TimeSpan.FromSeconds(1)).Should().BeFalse("Should not have already completed.");
             barrier.SetResult(true);
-            Should.CompleteIn(Task.WhenAll(task1, task2), _waitTimeout);
-            attempts.ShouldBe(1);
+            Task.WhenAll(task1, task2).AwaitingShouldCompleteIn(_waitTimeout);
+            attempts.Should().Be(1);
         }
 
         [Fact]
@@ -679,10 +672,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             MarkAlreadyStopped();
             var task2 = actor.Stop();
 
-            task2.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse("Should not have already completed.");
+            task2.Wait(TimeSpan.FromSeconds(1)).Should().BeFalse("Should not have already completed.");
             barrier.SetResult(true);
-            Should.CompleteIn(Task.WhenAll(task1, task2), _waitTimeout);
-            attempts.ShouldBe(1);
+            Task.WhenAll(task1, task2).AwaitingShouldCompleteIn(_waitTimeout);
+            attempts.Should().Be(1);
         }
 
         [Fact]
@@ -692,7 +685,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             actor.StartWork = new ActorStartWork(() => { });
 
-            Should.Throw<InvalidOperationException>(() => actor.StartWork = new ActorStartWork(() => { })).Message.ShouldBe("Start work already specified.");
+            Action action = () => actor.StartWork = new ActorStartWork(() => { });
+            action.ShouldThrow<InvalidOperationException>().WithMessage("Start work already specified.");
         }
 
         [Fact]
@@ -702,21 +696,25 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             actor.StopWork = new ActorStopWork(() => { });
 
-            Should.Throw<InvalidOperationException>(() => actor.StopWork = new ActorStopWork(() => { })).Message.ShouldBe("Stop work already specified.");
+            Action action = () => actor.StopWork = new ActorStopWork(() => { });
+            action.ShouldThrow<InvalidOperationException>().WithMessage("Stop work already specified.");
         }
 
         [Fact]
         public void ShouldNotBeAbleToSpecifyStartWorkOnceActorStarted()
         {
             var actor = CreateActor();
-            Should.Throw<InvalidOperationException>(() => actor.StartWork = new ActorStartWork(() => { })).Message.ShouldBe("Start work cannot be specified after starting an actor.");
+            Action action = () => actor.StartWork = new ActorStartWork(() => { });
+            action.ShouldThrow<InvalidOperationException>().WithMessage("Start work cannot be specified after starting an actor.");
         }
 
         [Fact]
         public void ShouldNotBeAbleToSpecifyStopWorkOnceActorStarted()
         {
             var actor = CreateActor();
-            Should.Throw<InvalidOperationException>(() => actor.StopWork = new ActorStopWork(() => { })).Message.ShouldBe("Stop work cannot be specified after starting an actor.");
+            Action action = () => actor.StopWork = new ActorStopWork(() => { });
+            action.ShouldThrow<InvalidOperationException>()
+                  .WithMessage("Stop work cannot be specified after starting an actor.");
         }
 
         [Theory]
@@ -772,10 +770,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                 actor.Start();
             }
 
-            Should.CompleteIn(task1, _waitTimeout);
-            Should.CompleteIn(task4, _waitTimeout);
-            Should.CompleteIn(task6, _waitTimeout);
-            Should.CompleteIn(task8, _waitTimeout);
+            task1.AwaitingShouldCompleteIn(_waitTimeout);
+            task4.AwaitingShouldCompleteIn(_waitTimeout);
+            task6.AwaitingShouldCompleteIn(_waitTimeout);
+            task8.AwaitingShouldCompleteIn(_waitTimeout);
             ShouldBeCancelled(task2);
             ShouldBeCancelled(task3);
             ShouldBeCancelled(task5);
@@ -809,7 +807,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     break;
                 case StopTaskCancellationTestCase.CancelDuringWork:
                     barrier.SetResult(true);
-                    Should.CompleteIn(async () => await startedStopWorkFlag.Task, TimeSpan.FromSeconds(5));
+                    startedStopWorkFlag.Task.AwaitingShouldCompleteIn(_waitTimeout);
                     cancellationTokenSource.Cancel();
                     break;
                 default:
@@ -820,7 +818,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             if (testCase == StopTaskCancellationTestCase.CancelPriorToInvoke)
             {
-                startedStopWorkFlag.Task.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse();
+                startedStopWorkFlag.Task.Wait(TimeSpan.FromSeconds(1)).Should().BeFalse();
             }
 
             ShouldBeCancelled(actor.Enqueue(() => { }));
@@ -874,7 +872,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             ShouldBeCancelled(startTask);
             ShouldBeCancelled(task);
             ShouldBeCancelled(actor.Enqueue(() => { }));
-            attempts.ShouldBe(0);
+            attempts.Should().Be(0);
         }
 
         [Flags]
@@ -900,7 +898,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             if (options.HasFlag(ActorCreateOptions.Start))
             {
-                Should.CompleteIn(actor.Start(), _waitTimeout);
+                actor.Start().AwaitingShouldCompleteIn(_waitTimeout);
             }
 
             return actor;
@@ -908,7 +906,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
         private void ShouldBeCancelled(Task task)
         {
-            Should.Throw<TaskCanceledException>(async () => await task);
+            Expect.That(async () => await task).ShouldThrow<TaskCanceledException>();
         }
 
         private void MarkAlreadyStopped()

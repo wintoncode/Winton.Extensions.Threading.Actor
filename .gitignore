@@ -17,8 +17,12 @@
 !*.snk
 !*.bat
 !*.sh
+!*.yml
+!*.ps1
+
 bin/
 obj/
 /.vs/
 /.vscode/
 Version.targets
+travis.props
