@@ -1,0 +1,28 @@
+# Ignore everything
+*
+
+# Don't ignore directories, so we can recurse into them
+!*/
+
+# Except
+!.gitattributes
+!.gitignore
+!.gitconfig
+!*.cs
+!*.csproj
+!*.DotSettings
+!*.sln
+!*.json
+!*.md
+!*.snk
+!*.bat
+!*.sh
+!*.yml
+!*.ps1
+
+bin/
+obj/
+/.vs/
+/.vscode/
+Version.targets
+travis.props

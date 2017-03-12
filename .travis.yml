@@ -1,0 +1,24 @@
+language: csharp
+
+sudo: required
+
+os: linux
+
+dist: trusty
+
+branches:
+  except:
+  - /^[0-9]/
+
+dotnet: 1.0.1
+
+mono: none
+  
+script:
+  - (git fetch --unshallow 2>/dev/null || echo "Already full repo.")
+  - ./build.sh
+
+notifications:
+  on_success: always
+  on_failure: always
+  on_start: always
