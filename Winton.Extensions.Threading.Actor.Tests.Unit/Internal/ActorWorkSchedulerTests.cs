@@ -89,7 +89,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             var actualIntervals = times.Take(sampleSize - 1).Zip(times.Skip(1), (x, y) => y - x).ToList();
 
-            actualIntervals.Should().OnlyContain(x => x >= expectedInterval);
+            // Use 75ms instead of 100ms to give it a bit of latitude: mainly we just want to make sure there is some delaying going on.
+            actualIntervals.Should().OnlyContain(x => x >= TimeSpan.FromMilliseconds(75));
 
             var expectedNumberOfDelays = sampleSize - (actorScheduleOptions.HasFlag(ActorScheduleOptions.NoInitialDelay) ? 1 : 0);
 
