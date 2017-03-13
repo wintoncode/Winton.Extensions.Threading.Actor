@@ -64,6 +64,8 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         protected override void EnterImpl()
         {
+            Context.StartCompletionSource.SetResult(true);
+
             foreach (var task in Context.InitialWorkQueue)
             {
                 Context.StartTask(task);
