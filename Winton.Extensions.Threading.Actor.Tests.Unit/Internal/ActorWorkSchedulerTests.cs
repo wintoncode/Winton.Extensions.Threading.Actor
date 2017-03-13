@@ -41,10 +41,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         [Theory]
-        [InlineData(WorkType.Async)]
-        [InlineData(WorkType.Sync)]
-        public void ShouldBeAbleToScheduleWorkToRepeatAtAFixedInterval(WorkType workType)
+        [InlineData(WorkType.Async, ActorScheduleOptions.Default)]
+        [InlineData(WorkType.Async, ActorScheduleOptions.NoInitialDelay)]
+        [InlineData(WorkType.Sync, ActorScheduleOptions.Default)]
+        [InlineData(WorkType.Sync, ActorScheduleOptions.NoInitialDelay)]
+        public void ShouldBeAbleToScheduleWorkToRepeatAtAFixedInterval(WorkType workType, ActorScheduleOptions actorScheduleOptions)
         {
+            var barrier = new TaskCompletionSource<bool>();
             var expectedInterval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
             var sampleSize = 5;
@@ -56,23 +59,27 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     {
                         times.Add(DateTime.UtcNow);
                     }
+                    
+                    if (times.Count == sampleSize)
+                    {
+                        // Block here so that we can assess something that's not moving
+                        barrier.Task.Wait();
+                    }
                 };
 
             switch (workType)
             {
                 case WorkType.Sync:
-                {
-                    _scheduler.Schedule(adder, expectedInterval);
-                }
+                    _scheduler.Schedule(adder, expectedInterval, actorScheduleOptions);
                     break;
                 case WorkType.Async:
-                {
                     _scheduler.Schedule(async () =>
                                         {
                                             await Task.Yield();
                                             adder();
-                                        }, expectedInterval);
-                }
+                                        },
+                                        expectedInterval,
+                                        actorScheduleOptions);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
@@ -82,47 +89,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             var actualIntervals = times.Take(sampleSize - 1).Zip(times.Skip(1), (x, y) => y - x).ToList();
 
-            actualIntervals.Should().OnlyContain(x => Math.Abs((expectedInterval - x).TotalMilliseconds) < 30);
-        }
+            actualIntervals.Should().OnlyContain(x => x >= expectedInterval);
 
-        [Theory]
-        [InlineData(WorkType.Async)]
-        [InlineData(WorkType.Sync)]
-        public void ShouldBeAbleToScheduleWorkToStartImmediatelyBeforeRepeatingAtIntervals(WorkType workType)
-        {
-            var expectedInterval = TimeSpan.FromMilliseconds(5000);
-            var scheduleTime = DateTime.UtcNow;
-            DateTime? firstWork = null;
+            var expectedNumberOfDelays = sampleSize - (actorScheduleOptions.HasFlag(ActorScheduleOptions.NoInitialDelay) ? 1 : 0);
 
-            switch (workType)
-            {
-                case WorkType.Sync:
-                    _scheduler.Schedule(() =>
-                                        {
-                                            if (!firstWork.HasValue)
-                                            {
-                                                firstWork = DateTime.UtcNow;
-                                            }
-                                        }, expectedInterval, ActorScheduleOptions.NoInitialDelay);
-                    break;
-                case WorkType.Async:
-                    _scheduler.Schedule(async () =>
-                                        {
-                                            await Task.Yield();
-                                            
-                                            if (!firstWork.HasValue)
-                                            {
-                                                firstWork = DateTime.UtcNow;
-                                            }
-                                        }, expectedInterval, ActorScheduleOptions.NoInitialDelay);
-                    break;
-                default:
-                    throw new Exception($"Unhandled test case {workType}.");
-            }
+            Expect.That(() => Mock.Get(_actorTaskFactory)
+                                  .Verify(x => x.CreateDelay(expectedInterval, It.IsAny<CancellationToken>()), Times.Exactly(expectedNumberOfDelays)))
+                  .ShouldNotThrow();
 
-            Within.FiveSeconds(() => firstWork.HasValue.Should().BeTrue());
-
-            (firstWork.Value - scheduleTime).Should().BeLessThan(TimeSpan.FromMilliseconds(1000));
+            barrier.SetResult(true);
         }
 
         [Fact]
@@ -193,19 +168,21 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var output = new List<string>();
             var interval = TimeSpan.FromMilliseconds(100);
             var task1 = default(Task);
-            var haveThreeTwos = new TaskCompletionSource<bool>();
+            var firstTwoAddedPromise = new TaskCompletionSource<bool>();
+            var gotAOneAfterATwoPromise = new TaskCompletionSource<bool>();
 
             Action<string> adder =
                 x =>
                 {
-                    if (!haveThreeTwos.Task.IsCompleted)
-                    {
-                        output.Add(x);
+                    output.Add(x);
 
-                        if (output.Count(y => y == "two") == 3)
-                        {
-                            haveThreeTwos.SetResult(true);
-                        }
+                    if (x == "two")
+                    {
+                        firstTwoAddedPromise.TrySetResult(true);
+                    }
+                    else if (firstTwoAddedPromise.Task.IsCompleted && x == "one")
+                    {
+                        gotAOneAfterATwoPromise.TrySetResult(true);
                     }
                 };
 
@@ -243,11 +220,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType2}.");
             }
 
-            haveThreeTwos.Task.AwaitingShouldCompleteIn(TimeSpan.FromSeconds(5));
+            firstTwoAddedPromise.Task.AwaitingShouldCompleteIn(TimeSpan.FromSeconds(5));
 
-            var firstTwoIndex = output.IndexOf("two");
-
-            output.Skip(firstTwoIndex).Should().OnlyContain(x => x == "two");
+            For.OneSecond(() => gotAOneAfterATwoPromise.Task.IsCompleted.Should().BeFalse("The first bit of work is still being scheduled."));
 
             task1.IsCanceled.Should().BeTrue();
         }
@@ -313,7 +288,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (workType)
             {
                 case WorkType.Sync:
-                {
                     task = _scheduler.Schedule(() =>
                                                {
                                                    times.Add(DateTime.UtcNow);
@@ -323,21 +297,18 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                                                        throw new Exception("Pah!");
                                                    }
                                                }, interval, ActorScheduleOptions.NoInitialDelay);
-                }
                     break;
                 case WorkType.Async:
-                {
                     task = _scheduler.Schedule(async () =>
                                                {
                                                    times.Add(DateTime.UtcNow);
                                                    await Task.Yield();
-                                                   
+
                                                    if (times.Count == 3)
                                                    {
                                                        throw new Exception("Pah!");
                                                    }
                                                }, interval, ActorScheduleOptions.NoInitialDelay);
-                }
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
