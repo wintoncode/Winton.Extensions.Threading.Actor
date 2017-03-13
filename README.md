@@ -1,5 +1,9 @@
 # Winton.Extensions.Threading.Actor
 
+[![Build Status](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor.svg?branch=master)](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor)
+[![Build status](https://ci.appveyor.com/api/projects/status/p8q7dr2fnx6cxjka/branch/master?svg=true)](https://ci.appveyor.com/project/jhickson/winton-extensions-threading-actor-oadln/branch/master)
+
+
 A lightweight implementation of the actor pattern designed to integrate with C#'s `async`/`await` keywords.
 It is a richer version of the implementation outlined on [Winton's Tech Blog](https://tech.winton.com/blog/2017/03/a-tpl-actor-pattern).
 

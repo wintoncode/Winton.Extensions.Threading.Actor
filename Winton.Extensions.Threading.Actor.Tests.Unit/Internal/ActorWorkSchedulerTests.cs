@@ -269,9 +269,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 case WorkType.Async:
                     task = _scheduler.Schedule(async () =>
                                                {
-                                                   await Task.Yield();
                                                    times.Add(_utcTimeSource.Current);
-
+                                                   await Task.Yield();
+                                                   
                                                    if (times.Count == 3)
                                                    {
                                                        throw new InvalidOperationException("Pah!");
@@ -326,9 +326,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 {
                     task = _scheduler.Schedule(async () =>
                                                {
-                                                   await Task.Yield();
                                                    times.Add(_utcTimeSource.Current);
-
+                                                   await Task.Yield();
+                                                   
                                                    if (times.Count == 3)
                                                    {
                                                        throw new Exception("Pah!");
