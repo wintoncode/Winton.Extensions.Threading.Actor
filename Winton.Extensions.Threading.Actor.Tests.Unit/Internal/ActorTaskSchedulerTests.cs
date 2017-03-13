@@ -266,7 +266,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [Fact]
         public void ShouldYieldCurrentThreadAndRerequestFromThreadPoolIfHaveProcessedNonLongRunningTasksContinuouslyForMoreThanAGivenTimePeriod()
         {
-            var fixableUtcTimeSource = new FixableTimeSource();
             _scheduler = new ActorTaskScheduler(_actorId, Mock.Get(_workItemQueuer).Object, _actorTaskFactory);
 
             var taskStartBarrier = new TaskCompletionSource<bool>();
@@ -281,7 +280,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             task1.Start(_scheduler);
             task2.Start(_scheduler);
             ThrowIfWaitTimesOut(taskStartBarrier.Task);
-            fixableUtcTimeSource.Increment(TimeSpan.FromMilliseconds(250));
             barrier.SetResult(true);
 
             task2.AwaitingShouldCompleteIn(_waitTimeout);
