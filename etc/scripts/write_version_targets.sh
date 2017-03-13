@@ -25,11 +25,19 @@ version_targets=$script_dir/../../Version.targets
 
 file_version=$($script_dir/calculate_file_version.sh $commitish)
 echo "File version  : $file_version"
+
 assembly_version=$($script_dir/calculate_assembly_version.sh $commitish)
 echo "Assembly version: $assembly_version"
+
 version_prefix=${file_version%%-*}
 echo "Version prefix  : $version_prefix"
-version_suffix=${file_version#*-}
+
+if [ "$version_prefix" == "$file_version" ]; then
+    version_suffix="";
+else
+    version_suffix=${file_version#*-};
+fi;
+
 echo "Version suffix  : $version_suffix"
 
 cat > $version_targets <<EOF
