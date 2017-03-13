@@ -924,25 +924,30 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
         private static IActorTaskFactory SetUpTaskFactory()
         {
-            var taskCreator = new ActorTaskFactory();
+            var realTaskFactory = new ActorTaskFactory();
             var taskFactory = Mock.Of<IActorTaskFactory>();
 
             Mock.Get(taskFactory)
                 .Setup(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Action<object>, CancellationToken, TaskCreationOptions, object>((action, cancellationToken, taskCreationOptions, state) => taskCreator.Create(action, cancellationToken, taskCreationOptions, state));
+                .Returns<Action<object>, CancellationToken, TaskCreationOptions, object>((action, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(action, cancellationToken, taskCreationOptions, state));
             Mock.Get(taskFactory)
                 .Setup(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, int>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => taskCreator.Create(function, cancellationToken, taskCreationOptions, state));
+                .Returns<Func<object, int>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
             Mock.Get(taskFactory)
                 .Setup(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => taskCreator.Create(function, cancellationToken, taskCreationOptions, state));
+                .Returns<Func<object, Task>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
             Mock.Get(taskFactory)
                 .Setup(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task<string>>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => taskCreator.Create(function, cancellationToken, taskCreationOptions, state));
+                .Returns<Func<object, Task<string>>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
             Mock.Get(taskFactory)
-                .Setup(x => x.FromCompleted()).Returns(taskCreator.FromCompleted);
+                .Setup(x => x.FromCompleted())
+                .Returns(realTaskFactory.FromCompleted);
             Mock.Get(taskFactory)
-                .Setup(x => x.FromException(It.IsAny<Exception>())).Returns<Exception>(taskCreator.FromException);
+                .Setup(x => x.FromException(It.IsAny<Exception>()))
+                .Returns<Exception>(realTaskFactory.FromException);
+            Mock.Get(taskFactory)
+                .Setup(x => x.CreateDelay(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                .Returns<TimeSpan, CancellationToken>(Task.Delay);
 
             return taskFactory;
         }
