@@ -19,7 +19,6 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
             }
             else
             {
-                Context.StartCompletionSource.SetResult(true);
                 Context.SetState<ActiveActorState>();
             }
         }

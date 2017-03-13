@@ -34,7 +34,6 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
                          {
                              await task.ConfigureAwait(false);
 
-                             Context.StartCompletionSource.SetResult(true);
                              Context.SetState<ActiveActorState>();
 
                              if (ReceivedStopSignal)
@@ -62,7 +61,14 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         protected override void ScheduleImpl(Task task)
         {
-            Context.InitialWorkQueue.Add(task);
+            if (!ReceivedStopSignal)
+            {
+                Context.InitialWorkQueue.Add(task);
+            }
+            else
+            {
+                Context.InitialWorkToBeCancelledQueue.Add(task);
+            }
         }
 
         private bool ReceivedStopSignal { get; set; } = false;

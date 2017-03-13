@@ -25,6 +25,8 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         public List<Task> InitialWorkQueue { get; } = new List<Task>();
 
+        public List<Task> InitialWorkToBeCancelledQueue { get; } = new List<Task>();
+
         public IActorTaskFactory ActorTaskFactory { get; }
 
         public ActorStartWork StartWork
