@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor.svg?branch=master)](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor)
 [![Build status](https://ci.appveyor.com/api/projects/status/nddtjsmqktd5dggu/branch/master?svg=true)](https://ci.appveyor.com/project/wintoncode/winton-extensions-threading-actor/branch/master)
+[![NuGet version](https://img.shields.io/nuget/v/Winton.Extensions.Threading.Actor.svg)](https://www.nuget.org/packages/Winton.Extensions.Threading.Actor)
+[![NuGet version](https://img.shields.io/nuget/vpre/Winton.Extensions.Threading.Actor.svg)](https://www.nuget.org/packages/Winton.Extensions.Threading.Actor)
 
 A lightweight implementation of the actor pattern designed to integrate with C#'s `async`/`await` keywords.
 It is a richer version of the implementation outlined on [Winton's Tech Blog](https://tech.winton.com/blog/2017/03/a-tpl-actor-pattern).
@@ -45,7 +47,7 @@ The following platforms are supported:
 
 ## Installation
 
-The easiest way to install this library is to add a NuGet dependency on `Winton.Extensions.Threading.Actor` to your
+The easiest way to install this library is to add a NuGet dependency on [`Winton.Extensions.Threading.Actor`](https://www.nuget.org/packages/Winton.Extensions.Threading.Actor) to your
 library. 
 
 ## Building
