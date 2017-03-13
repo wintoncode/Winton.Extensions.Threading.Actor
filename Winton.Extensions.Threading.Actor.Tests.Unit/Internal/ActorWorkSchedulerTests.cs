@@ -22,13 +22,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             Async
         }
 
-        private readonly IActor _actor;
-        private readonly IActorWorkScheduler _scheduler;
+        private IActor _actor;
+        private IActorWorkScheduler _scheduler;
 
         public ActorWorkSchedulerTests()
         {
-            _actor = Mock.Of<IActor>();
-            _scheduler = new ActorWorkScheduler(_actor, new ActorTaskFactory());
+            var actorTaskFactory = new ActorTaskFactory();
+            _actor = new Actor(actorTaskFactory);
+            _actor.Start();
+            _scheduler = new ActorWorkScheduler(_actor, actorTaskFactory);
         }
 
         [Theory]
@@ -36,8 +38,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToScheduleWorkToRepeatAtAFixedInterval(WorkType workType)
         {
-            SetUpActor(workType);
-
             var expectedInterval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
             var sampleSize = 5;
@@ -86,7 +86,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToScheduleWorkToStartImmediatelyBeforeRepeatingAtIntervals(WorkType workType)
         {
-            SetUpActor(workType);
             var expectedInterval = TimeSpan.FromMilliseconds(100);
             var scheduleTime = DateTime.UtcNow;
             DateTime? firstWork = null;
@@ -128,7 +127,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToSpecifyThatWorkIsLongRunning(WorkType workType)
         {
+            var actorTaskFactory = new ActorTaskFactory();
+            _actor = Mock.Of<IActor>();
             SetUpActor(workType);
+            _actor.Start();
+            _scheduler = new ActorWorkScheduler(_actor, actorTaskFactory);
 
             switch (workType)
             {
@@ -156,8 +159,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToCancelSchedule(WorkType workType)
         {
-            SetUpActor(workType);
-
             var output = new List<string>();
             var interval = TimeSpan.FromMilliseconds(100);
             var task = default(Task);
@@ -196,9 +197,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync, WorkType.Sync)]
         public void ASecondCallToScheduleShouldCancelTheWorkPreviouslyScheduled(WorkType workType1, WorkType workType2)
         {
-            SetUpActor(workType1);
-            SetUpActor(workType2);
-
             var output = new List<string>();
             var interval = TimeSpan.FromMilliseconds(100);
             var task1 = default(Task);
@@ -266,7 +264,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToConfigureScheduleToRescheduleInCaseOfUnexpectedErrorButNotCancellation(WorkType workType)
         {
-            SetUpActor(workType);
             var interval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
             var emittedException = default(Exception);
@@ -316,7 +313,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void WhenAnUnhandledErrorOccursInTheWorkTheScheduleShouldStopAndEmitTheError(WorkType workType)
         {
-            SetUpActor(workType);
             var interval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
             var task = default(Task);
