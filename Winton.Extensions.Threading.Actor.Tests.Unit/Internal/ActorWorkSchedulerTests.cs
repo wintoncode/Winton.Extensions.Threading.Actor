@@ -14,7 +14,7 @@ using Xunit;
 
 namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 {
-    public sealed class ActorWorkSchedulerTests
+    public sealed class ActorWorkSchedulerTests : IDisposable
     {
         public enum WorkType
         {
@@ -22,15 +22,22 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             Async
         }
 
-        private IActor _actor;
-        private IActorWorkScheduler _scheduler;
+        private readonly IActor _actor;
+        private readonly IActorWorkScheduler _scheduler;
+        private readonly IActorTaskFactory _actorTaskFactory;
 
         public ActorWorkSchedulerTests()
         {
-            var actorTaskFactory = new ActorTaskFactory();
-            _actor = new Actor(actorTaskFactory);
+            _actorTaskFactory = SetUpTaskFactory();
+            _actor = new Actor(_actorTaskFactory);
             _actor.Start();
-            _scheduler = new ActorWorkScheduler(_actor, actorTaskFactory);
+            _scheduler = new ActorWorkScheduler(_actor, _actorTaskFactory);
+        }
+
+        public void Dispose()
+        {
+            _scheduler.CancelCurrent();
+            _actor.Stop();
         }
 
         [Theory]
@@ -50,9 +57,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                         times.Add(DateTime.UtcNow);
                     }
                 };
-
-            // First scheduled call to add should not be immediate so mark start ...
-            adder();
 
             switch (workType)
             {
@@ -86,10 +90,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(WorkType.Sync)]
         public void ShouldBeAbleToScheduleWorkToStartImmediatelyBeforeRepeatingAtIntervals(WorkType workType)
         {
-            var expectedInterval = TimeSpan.FromMilliseconds(100);
+            var expectedInterval = TimeSpan.FromMilliseconds(5000);
             var scheduleTime = DateTime.UtcNow;
             DateTime? firstWork = null;
-
 
             switch (workType)
             {
@@ -119,39 +122,29 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             Within.FiveSeconds(() => firstWork.HasValue.Should().BeTrue());
 
-            (firstWork.Value - scheduleTime).Should().BeLessThan(TimeSpan.FromMilliseconds(50));
+            (firstWork.Value - scheduleTime).Should().BeLessThan(TimeSpan.FromMilliseconds(1000));
         }
 
-        [Theory]
-        [InlineData(WorkType.Async)]
-        [InlineData(WorkType.Sync)]
-        public void ShouldBeAbleToSpecifyThatWorkIsLongRunning(WorkType workType)
+        [Fact]
+        public void ShouldBeAbleToSpecifyThatSyncWorkIsLongRunning()
         {
-            var actorTaskFactory = new ActorTaskFactory();
-            _actor = Mock.Of<IActor>();
-            SetUpActor(workType);
-            _actor.Start();
-            _scheduler = new ActorWorkScheduler(_actor, actorTaskFactory);
+            _scheduler.Schedule(() => { }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
+            Within.FiveSeconds(
+                () => Expect.That(
+                                () => Mock.Get(_actorTaskFactory)
+                                          .Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.Is<TaskCreationOptions>(o => o.HasFlag(TaskCreationOptions.LongRunning)), It.IsAny<object>()), Times.Once))
+                            .ShouldNotThrow());
+        }
 
-            switch (workType)
-            {
-                case WorkType.Sync:
-                {
-                    var work = (Action)(() => { });
-                    _scheduler.Schedule(work, TimeSpan.FromMilliseconds(100), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-                    Within.FiveSeconds(() => Expect.That(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)).ShouldNotThrow());
-                }
-                    break;
-                case WorkType.Async:
-                {
-                    var work = (Func<Task>)(async () => { await Task.Yield(); });
-                    _scheduler.Schedule(work, TimeSpan.FromMilliseconds(100), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-                    Within.FiveSeconds(() => Expect.That(() => Mock.Get(_actor).Verify(x => x.Enqueue(work, It.IsAny<CancellationToken>(), ActorEnqueueOptions.WorkIsLongRunning), Times.Once)).ShouldNotThrow());
-                }
-                    break;
-                default:
-                    throw new Exception($"Unhandled test case {workType}.");
-            }
+        [Fact]
+        public void ShouldBeAbleToSpecifyThatAsyncWorkIsLongRunning()
+        {
+            _scheduler.Schedule(async () => { await Task.Yield(); }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
+            Within.FiveSeconds(
+                () => Expect.That(
+                                () => Mock.Get(_actorTaskFactory)
+                                          .Verify(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.Is<TaskCreationOptions>(o => o.HasFlag(TaskCreationOptions.LongRunning)), It.IsAny<object>()), Times.Once))
+                            .ShouldNotThrow());
         }
 
         [Theory]
@@ -179,11 +172,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Within.OneSecond(() => output.Should().Equal(Enumerable.Repeat("one", 1)));
+            Within.FiveSeconds(() => output.Should().Equal(Enumerable.Repeat("one", 1)));
 
             _scheduler.CancelCurrent();
 
-            Within.OneSecond(() => task.IsCanceled.Should().BeTrue());
+            Within.FiveSeconds(() => task.IsCanceled.Should().BeTrue());
 
             var marker = output.Count;
 
@@ -388,45 +381,35 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                   .And.ParamName.Should().Be("work");
         }
 
-        private void SetUpActor(WorkType workType)
+        private static IActorTaskFactory SetUpTaskFactory()
         {
-            switch (workType)
-            {
-                case WorkType.Sync:
-                    Mock.Get(_actor)
-                        .Setup(x => x.Enqueue(It.IsAny<Action>(), It.IsAny<CancellationToken>(), It.IsAny<ActorEnqueueOptions>()))
-                        .Returns<Action, CancellationToken?, ActorEnqueueOptions>((x, y, z) =>
-                                                                                  {
-                                                                                      try
-                                                                                      {
-                                                                                          x();
-                                                                                          return Task.CompletedTask;
-                                                                                      }
-                                                                                      catch (Exception exception)
-                                                                                      {
-                                                                                          return Task.FromException(exception);
-                                                                                      }
-                                                                                  });
-                    break;
-                case WorkType.Async:
-                    Mock.Get(_actor)
-                        .Setup(x => x.Enqueue(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>(), It.IsAny<ActorEnqueueOptions>()))
-                        .Returns<Func<Task>, CancellationToken?, ActorEnqueueOptions>((x, y, z) =>
-                                                                                      {
-                                                                                          try
-                                                                                          {
-                                                                                              x().Wait();
-                                                                                              return Task.CompletedTask;
-                                                                                          }
-                                                                                          catch (AggregateException exception)
-                                                                                          {
-                                                                                              return Task.FromException(exception.InnerExceptions.First());
-                                                                                          }
-                                                                                      });
-                    break;
-                default:
-                    throw new Exception($"Unhandled test case {workType}.");
-            }
+            var realTaskFactory = new ActorTaskFactory();
+            var taskFactory = Mock.Of<IActorTaskFactory>();
+
+            Mock.Get(taskFactory)
+                .Setup(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
+                .Returns<Action<object>, CancellationToken, TaskCreationOptions, object>((action, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(action, cancellationToken, taskCreationOptions, state));
+            Mock.Get(taskFactory)
+                .Setup(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
+                .Returns<Func<object, int>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
+            Mock.Get(taskFactory)
+                .Setup(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
+                .Returns<Func<object, Task>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
+            Mock.Get(taskFactory)
+                .Setup(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
+                .Returns<Func<object, Task<string>>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
+            Mock.Get(taskFactory)
+                .Setup(x => x.FromCompleted())
+                .Returns(realTaskFactory.FromCompleted);
+            Mock.Get(taskFactory)
+                .Setup(x => x.FromException(It.IsAny<Exception>()))
+                .Returns<Exception>(realTaskFactory.FromException);
+            Mock.Get(taskFactory)
+                .Setup(x => x.CreateDelay(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                .Returns<TimeSpan, CancellationToken>(Task.Delay);
+
+            return taskFactory;
         }
+
     }
 }
