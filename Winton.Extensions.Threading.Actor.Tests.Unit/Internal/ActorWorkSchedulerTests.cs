@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See LICENCE in the project root for license information.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -24,16 +23,12 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         private readonly IActor _actor;
-        private readonly IActorTaskFactory _actorTaskFactory;
         private readonly IActorWorkScheduler _scheduler;
-        private readonly FixableTimeSource _utcTimeSource;
 
         public ActorWorkSchedulerTests()
         {
-            _utcTimeSource = new FixableTimeSource();
-            _actorTaskFactory = new TestActorTaskFactory(_utcTimeSource);
             _actor = Mock.Of<IActor>();
-            _scheduler = new ActorWorkScheduler(_actor, _actorTaskFactory);
+            _scheduler = new ActorWorkScheduler(_actor, new ActorTaskFactory());
         }
 
         [Theory]
@@ -43,16 +38,27 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         {
             SetUpActor(workType);
 
-            var interval = TimeSpan.FromMilliseconds(400);
-            var halfInterval = TimeSpan.FromMilliseconds(200);
+            var expectedInterval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
-            var expectedTimes = Enumerable.Range(1, 3).Select(x => _utcTimeSource.Current + TimeSpan.FromTicks(interval.Ticks * x)).ToList();
+            var sampleSize = 5;
+
+            Action adder =
+                () =>
+                {
+                    if (times.Count < sampleSize)
+                    {
+                        times.Add(DateTime.UtcNow);
+                    }
+                };
+
+            // First scheduled call to add should not be immediate so mark start ...
+            adder();
 
             switch (workType)
             {
                 case WorkType.Sync:
                 {
-                    _scheduler.Schedule(() => times.Add(_utcTimeSource.Current), interval);
+                    _scheduler.Schedule(adder, expectedInterval);
                 }
                     break;
                 case WorkType.Async:
@@ -60,22 +66,19 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     _scheduler.Schedule(async () =>
                                         {
                                             await Task.Yield();
-                                            times.Add(_utcTimeSource.Current);
-                                        }, interval);
+                                            adder();
+                                        }, expectedInterval);
                 }
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            for (var i = 0; i < expectedTimes.Count; i++)
-            {
-                _utcTimeSource.Increment(halfInterval);
-                _utcTimeSource.Increment(halfInterval);
-                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
-            }
+            Within.FiveSeconds(() => times.Count.Should().Be(sampleSize));
 
-            times.Should().Equal(expectedTimes);
+            var actualIntervals = times.Take(sampleSize - 1).Zip(times.Skip(1), (x, y) => y - x).ToList();
+
+            actualIntervals.Should().OnlyContain(x => Math.Abs((expectedInterval - x).TotalMilliseconds) < 30);
         }
 
         [Theory]
@@ -84,35 +87,40 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void ShouldBeAbleToScheduleWorkToStartImmediatelyBeforeRepeatingAtIntervals(WorkType workType)
         {
             SetUpActor(workType);
-            var interval = TimeSpan.FromMilliseconds(1000);
-            var times = new List<DateTime>();
-            var expectedTimes = Enumerable.Range(0, 4).Select(x => _utcTimeSource.Current + TimeSpan.FromTicks(interval.Ticks * x)).ToList();
+            var expectedInterval = TimeSpan.FromMilliseconds(100);
+            var scheduleTime = DateTime.UtcNow;
+            DateTime? firstWork = null;
+
 
             switch (workType)
             {
                 case WorkType.Sync:
-                    _scheduler.Schedule(() => times.Add(_utcTimeSource.Current), interval, ActorScheduleOptions.NoInitialDelay);
+                    _scheduler.Schedule(() =>
+                                        {
+                                            if (!firstWork.HasValue)
+                                            {
+                                                firstWork = DateTime.UtcNow;
+                                            }
+                                        }, expectedInterval, ActorScheduleOptions.NoInitialDelay);
                     break;
                 case WorkType.Async:
                     _scheduler.Schedule(async () =>
                                         {
                                             await Task.Yield();
-                                            times.Add(_utcTimeSource.Current);
-                                        }, interval, ActorScheduleOptions.NoInitialDelay);
+                                            
+                                            if (!firstWork.HasValue)
+                                            {
+                                                firstWork = DateTime.UtcNow;
+                                            }
+                                        }, expectedInterval, ActorScheduleOptions.NoInitialDelay);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Within.OneSecond(() => times.Count.Should().Be(1));
+            Within.FiveSeconds(() => firstWork.HasValue.Should().BeTrue());
 
-            for (var i = 0; i < expectedTimes.Count - 1; i++)
-            {
-                _utcTimeSource.Increment(interval);
-                Within.OneSecond(() => times.Count.Should().Be(i + 2));
-            }
-
-            times.Should().Equal(expectedTimes);
+            (firstWork.Value - scheduleTime).Should().BeLessThan(TimeSpan.FromMilliseconds(50));
         }
 
         [Theory]
@@ -170,17 +178,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            _utcTimeSource.Increment(interval);
-
             Within.OneSecond(() => output.Should().Equal(Enumerable.Repeat("one", 1)));
 
             _scheduler.CancelCurrent();
 
-            _utcTimeSource.Increment(interval);
+            Within.OneSecond(() => task.IsCanceled.Should().BeTrue());
 
-            For.OneSecond(() => output.Count.Should().Be(1));
+            var marker = output.Count;
 
-            task.IsCanceled.Should().BeTrue();
+            For.OneSecond(() => output.Count.Should().Be(marker));
         }
 
         [Theory]
@@ -195,37 +201,50 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             var output = new List<string>();
             var interval = TimeSpan.FromMilliseconds(100);
-            var task = default(Task);
+            var task1 = default(Task);
+            var haveThreeTwos = new TaskCompletionSource<bool>();
+
+            Action<string> adder =
+                x =>
+                {
+                    if (!haveThreeTwos.Task.IsCompleted)
+                    {
+                        output.Add(x);
+
+                        if (output.Count(y => y == "two") == 3)
+                        {
+                            haveThreeTwos.SetResult(true);
+                        }
+                    }
+                };
 
             switch (workType1)
             {
                 case WorkType.Sync:
-                    task = _scheduler.Schedule(() => { output.Add("one"); }, interval);
+                    task1 = _scheduler.Schedule(() => { adder("one"); }, interval);
                     break;
                 case WorkType.Async:
-                    task = _scheduler.Schedule(async () =>
+                    task1 = _scheduler.Schedule(async () =>
                                                {
                                                    await Task.Yield();
-                                                   output.Add("one");
+                                                   adder("one");
                                                }, interval);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType1}.");
             }
 
-            _utcTimeSource.Increment(interval);
-
-            Within.FiveSeconds(() => output.Count.Should().Be(1));
+            Within.FiveSeconds(() => output.Count.Should().BeGreaterOrEqualTo(1));
 
             switch (workType2)
             {
                 case WorkType.Sync:
-                    _scheduler.Schedule(() => { output.Add("two"); }, interval);
+                    _scheduler.Schedule(() => { adder("two"); }, interval);
                     break;
                 case WorkType.Async:
                     _scheduler.Schedule(async () =>
                                         {
-                                            output.Add("two");
+                                            adder("two");
                                             await Task.Yield();
                                         }, interval);
                     break;
@@ -233,12 +252,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType2}.");
             }
 
-            _utcTimeSource.Increment(interval);
+            haveThreeTwos.Task.AwaitingShouldCompleteIn(TimeSpan.FromSeconds(5));
 
-            Within.FiveSeconds(() => output.Count.Should().Be(2));
+            var firstTwoIndex = output.IndexOf("two");
 
-            output.Should().Equal("one", "two");
-            task.IsCanceled.Should().BeTrue();
+            output.Skip(firstTwoIndex).Should().OnlyContain(x => x == "two");
+
+            task1.IsCanceled.Should().BeTrue();
         }
 
         [Theory]
@@ -247,9 +267,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void ShouldBeAbleToConfigureScheduleToRescheduleInCaseOfUnexpectedErrorButNotCancellation(WorkType workType)
         {
             SetUpActor(workType);
-            var interval = TimeSpan.FromMilliseconds(1000);
+            var interval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
-            var expectedTimes = Enumerable.Range(1, 6).Select(x => _utcTimeSource.Current + TimeSpan.FromTicks(interval.Ticks * x)).ToList();
             var emittedException = default(Exception);
             var task = default(Task);
 
@@ -258,7 +277,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 case WorkType.Sync:
                     task = _scheduler.Schedule(() =>
                                                {
-                                                   times.Add(_utcTimeSource.Current);
+                                                   times.Add(DateTime.UtcNow);
 
                                                    if (times.Count == 3)
                                                    {
@@ -269,7 +288,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 case WorkType.Async:
                     task = _scheduler.Schedule(async () =>
                                                {
-                                                   times.Add(_utcTimeSource.Current);
+                                                   times.Add(DateTime.UtcNow);
+                                                   
                                                    await Task.Yield();
                                                    
                                                    if (times.Count == 3)
@@ -282,13 +302,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            for (var i = 0; i < expectedTimes.Count; i++)
-            {
-                _utcTimeSource.Increment(interval);
-                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
-            }
+            Within.FiveSeconds(() => times.Should().HaveCount(4));
 
-            times.Should().Equal(expectedTimes);
             emittedException.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Be("Pah!");
 
             _scheduler.CancelCurrent();
@@ -302,9 +317,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void WhenAnUnhandledErrorOccursInTheWorkTheScheduleShouldStopAndEmitTheError(WorkType workType)
         {
             SetUpActor(workType);
-            var interval = TimeSpan.FromMilliseconds(1000);
+            var interval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
-            var expectedTimes = Enumerable.Range(0, 3).Select(x => _utcTimeSource.Current + TimeSpan.FromTicks(interval.Ticks * x)).ToList();
             var task = default(Task);
 
             switch (workType)
@@ -313,7 +327,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 {
                     task = _scheduler.Schedule(() =>
                                                {
-                                                   times.Add(_utcTimeSource.Current);
+                                                   times.Add(DateTime.UtcNow);
 
                                                    if (times.Count == 3)
                                                    {
@@ -326,7 +340,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 {
                     task = _scheduler.Schedule(async () =>
                                                {
-                                                   times.Add(_utcTimeSource.Current);
+                                                   times.Add(DateTime.UtcNow);
                                                    await Task.Yield();
                                                    
                                                    if (times.Count == 3)
@@ -340,22 +354,12 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            // Should hit exception on final loop of this
-            for (var i = 0; i < expectedTimes.Count - 1; i++)
-            {
-                Within.FiveSeconds(() => times.Count.Should().Be(i + 1));
-                _utcTimeSource.Increment(interval);
-            }
-
             Expect.That(async () => await task).ShouldThrow<Exception>().WithMessage("Pah!");
 
-            // The schedule should have been cancelled so these should have no effect.
-            _utcTimeSource.Increment(interval);
-            _utcTimeSource.Increment(interval);
-
-            Within.FiveSeconds(() => times.Should().Equal(expectedTimes));
+            // The schedule should have been cancelled so expect the times list to not be added to
+            For.OneSecond(() => times.Should().HaveCount(3));
         }
-
+        
         [Fact]
         public void SynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
@@ -400,11 +404,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                                                                                       try
                                                                                       {
                                                                                           x();
-                                                                                          return _actorTaskFactory.FromCompleted();
+                                                                                          return Task.CompletedTask;
                                                                                       }
                                                                                       catch (Exception exception)
                                                                                       {
-                                                                                          return _actorTaskFactory.FromException(exception);
+                                                                                          return Task.FromException(exception);
                                                                                       }
                                                                                   });
                     break;
@@ -416,119 +420,16 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                                                                                           try
                                                                                           {
                                                                                               x().Wait();
-                                                                                              return _actorTaskFactory.FromCompleted();
+                                                                                              return Task.CompletedTask;
                                                                                           }
                                                                                           catch (AggregateException exception)
                                                                                           {
-                                                                                              return _actorTaskFactory.FromException(exception.InnerExceptions.First());
+                                                                                              return Task.FromException(exception.InnerExceptions.First());
                                                                                           }
                                                                                       });
                     break;
                 default:
                     throw new Exception($"Unhandled test case {workType}.");
-            }
-        }
-
-        private sealed class TestActorTaskFactory : IActorTaskFactory, IDisposable
-        {
-            private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-            private readonly ConcurrentDictionary<DateTime, TaskCompletionSource<bool>> _delays = new ConcurrentDictionary<DateTime, TaskCompletionSource<bool>>();
-            private readonly IActorTaskFactory _impl = new ActorTaskFactory();
-            private readonly FixableTimeSource _timeSource;
-
-            private bool _disposed = false;
-
-            public TestActorTaskFactory(FixableTimeSource timeSource)
-            {
-                _timeSource = timeSource;
-                timeSource.OnUpdate += HandleTimeUpdate;
-            }
-
-            public Task FromException(Exception exception)
-            {
-                return _impl.FromException(exception);
-            }
-
-            public Task FromCompleted()
-            {
-                return _impl.FromCompleted();
-            }
-
-            public Task Create(Action<object> action, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, object state)
-            {
-                return _impl.Create(action, cancellationToken, taskCreationOptions, state);
-            }
-
-            public Task<T> Create<T>(Func<object, T> function, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, object state)
-            {
-                return _impl.Create(function, cancellationToken, taskCreationOptions, state);
-            }
-
-            public Task CreateDelay(TimeSpan delay, CancellationToken cancellationToken)
-            {
-                if (delay < TimeSpan.Zero)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(delay));
-                }
-
-                if (delay == TimeSpan.Zero)
-                {
-                    return FromCompleted();
-                }
-
-                return
-                    _delays.AddOrUpdate(_timeSource.Current + delay,
-                                        _ =>
-                                        {
-                                            var taskCompletionSource = new TaskCompletionSource<bool>();
-                                            cancellationToken.Register(() => taskCompletionSource.TrySetCanceled());
-                                            return taskCompletionSource;
-                                        },
-                                        (x, y) =>
-                                        {
-                                            if (y.Task.IsCompleted)
-                                            {
-                                                var taskCompletionSource = new TaskCompletionSource<bool>();
-                                                cancellationToken.Register(() => taskCompletionSource.TrySetCanceled());
-                                                return taskCompletionSource;
-                                            }
-                                            else
-                                            {
-                                                return y;
-                                            }
-                                        })
-                           .Task;
-            }
-
-            public void Dispose()
-            {
-                Dispose(true);
-            }
-
-            private void HandleTimeUpdate(DateTime currentTime)
-            {
-                foreach (var key in _delays.Keys)
-                {
-                    if (key <= currentTime)
-                    {
-                        var taskCompletionSource = default(TaskCompletionSource<bool>);
-                        _delays.TryRemove(key, out taskCompletionSource);
-                        taskCompletionSource.TrySetResult(true);
-                    }
-                }
-            }
-
-            private void Dispose(bool disposing)
-            {
-                if (!_disposed)
-                {
-                    if (disposing)
-                    {
-                        _cancellationTokenSource.Cancel();
-                    }
-
-                    _disposed = true;
-                }
             }
         }
     }
