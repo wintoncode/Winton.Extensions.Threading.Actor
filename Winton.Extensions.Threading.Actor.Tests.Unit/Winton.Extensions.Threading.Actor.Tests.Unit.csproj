@@ -1,7 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <Import Condition="Exists('../travis.props')" Project="../travis.props" />
-
   <PropertyGroup>    
     <TargetFrameworks>netcoreapp1.0;net451</TargetFrameworks>
     <SignAssembly>True</SignAssembly>    
