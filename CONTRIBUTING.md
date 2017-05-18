@@ -9,7 +9,7 @@ Here are questions you can answer before you file a bug to make sure you're not 
 
 1. Did you include the snippet of broken code in the issue?
 2. What are the *EXACT* steps to reproduce this problem?
-3. What package versions are you using (you can see these in the `project.json` file)?
+3. What package versions are you using?
 4. What operating system are you using?
 
 GitHub supports [markdown](https://help.github.com/articles/github-flavored-markdown/), so when filing bugs make sure you check the formatting before clicking submit.
