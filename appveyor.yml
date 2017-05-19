@@ -7,7 +7,7 @@ install:
   - set PATH=C:\msys64\usr\bin;%PATH%
 
 build_script:
-  - bash.exe -lc "./etc/scripts/write_version_targets.sh"
+  - bash.exe -lc "cd $APPVEYOR_BUILD_FOLDER && ./etc/scripts/write_version_targets.sh"
   - ps: .\build.ps1 -VersionAndPublish (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER)
 
 test: off
