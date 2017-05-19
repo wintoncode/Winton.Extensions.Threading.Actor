@@ -6,7 +6,7 @@
 [![NuGet version](https://img.shields.io/nuget/vpre/Winton.Extensions.Threading.Actor.svg)](https://www.nuget.org/packages/Winton.Extensions.Threading.Actor)
 
 A lightweight implementation of the actor pattern designed to integrate with C#'s `async`/`await` keywords.
-It is a richer version of the implementation that will be outlined on [Winton's Tech Blog](https://tech.winton.com/blog/2017/03/a-tpl-actor-pattern) later this week.
+It is a richer version of the implementation that is outlined on [Winton's Tech Blog](https://tech.winton.com/blog/2017/03/a-tpl-actor-pattern).
 
 ## Overview
 
