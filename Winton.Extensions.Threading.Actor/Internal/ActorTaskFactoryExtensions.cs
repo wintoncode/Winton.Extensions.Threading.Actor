@@ -8,9 +8,9 @@ namespace Winton.Extensions.Threading.Actor.Internal
     {
         private const TaskCreationOptions BaseCreationOptions = TaskCreationOptions.HideScheduler;
 
-        public static Task Create(this IActorTaskFactory self, Action work, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions)
+        public static Task Create(this IActorTaskFactory self, Action work, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, ActorTaskKind kind = ActorTaskKind.Standard)
         {
-            var actorTaskState = new ActorTaskContext(cancellationToken);
+            var actorTaskState = new ActorTaskContext(cancellationToken, kind);
             return self.Create(state =>
                                {
                                    try
@@ -25,9 +25,9 @@ namespace Winton.Extensions.Threading.Actor.Internal
                                actorTaskState.Canceller.Token, taskCreationOptions | BaseCreationOptions, actorTaskState);
         }
 
-        public static Task<T> Create<T>(this IActorTaskFactory self, Func<T> work, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions)
+        public static Task<T> Create<T>(this IActorTaskFactory self, Func<T> work, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, ActorTaskKind kind = ActorTaskKind.Standard)
         {
-            var actorTaskState = new ActorTaskContext(cancellationToken);
+            var actorTaskState = new ActorTaskContext(cancellationToken, kind);
             return self.Create(state =>
                                {
                                    try
