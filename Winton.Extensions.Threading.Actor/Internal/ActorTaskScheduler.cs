@@ -7,19 +7,26 @@ namespace Winton.Extensions.Threading.Actor.Internal
 {
     internal sealed class ActorTaskScheduler : TaskScheduler
     {
+        [ThreadStatic]
+        private static ActorTaskScheduler _currentActorScheduler;
+
         private readonly ActorId _actorId;
         private readonly object _lockObject = new object();
-        private readonly ActorTaskSchedulerState _state = new ActorTaskSchedulerState();
+        private readonly ActorTaskSchedulerStatusManager _statusManager = new ActorTaskSchedulerStatusManager();
         private readonly ActorSynchronizationContext _synchronizationContext;
         private readonly Queue<Task> _taskQueue = new Queue<Task>();
         private readonly IWorkItemQueuer _workItemQueuer;
+
+        private ActorSynchronizationContext _resumingSynchronizationContext;
 
         public ActorTaskScheduler(ActorId actorId, IWorkItemQueuer workItemQueuer, IActorTaskFactory actorTaskFactory)
         {
             _actorId = actorId;
             _workItemQueuer = workItemQueuer;
-            _synchronizationContext = new ActorSynchronizationContext(this, actorTaskFactory);
+            _synchronizationContext = new ActorSynchronizationContext(this, actorTaskFactory, ActorTaskKind.Standard);
         }
+
+        public static ActorTaskScheduler CurrentActorScheduler => _currentActorScheduler;
 
         public override int MaximumConcurrencyLevel => 1;
 
@@ -27,36 +34,57 @@ namespace Winton.Extensions.Threading.Actor.Internal
         {
             lock (_lockObject)
             {
-                _state.MarkTerminated();
+                _statusManager.MarkTerminated();
+            }
+        }
+
+        public void WhileActorPaused(Task task)
+        {
+            lock (_lockObject)
+            {
+                if (_statusManager.State == ActorTaskSchedulerStatus.Terminated)
+                {
+                    return;
+                }
+
+                _resumingSynchronizationContext = _resumingSynchronizationContext ?? _synchronizationContext.ChangeActorTaskKind(ActorTaskKind.Resumer);
+                SynchronizationContext.SetSynchronizationContext(_resumingSynchronizationContext);
+                _statusManager.MarkPaused();
             }
         }
 
         protected override void QueueTask(Task task)
         {
-            if (task.IsActorTask())
-            {
-                lock (_lockObject)
-                {
-                    if (_state.IsTerminated)
-                    {
-                        task.Cancel();
-                        return;
-                    }
+            var actorTaskContext = task.GetActorTaskContext();
 
-                    if (!_state.IsActive)
-                    {
-                        _state.MarkActive();
-                        LaunchNew(task);
-                    }
-                    else
-                    {
-                        _taskQueue.Enqueue(task);
-                    }
-                }
-            }
-            else
+            lock (_lockObject)
             {
-                throw new InvalidOperationException("Task is not an actor task.");
+                switch (_statusManager.State)
+                {
+                    case ActorTaskSchedulerStatus.Terminated:
+                        actorTaskContext.Canceller.Cancel();
+                        break;
+                    case ActorTaskSchedulerStatus.Inactive:
+                        _statusManager.MarkActive();
+                        LaunchNew(task);
+                        break;
+                    case ActorTaskSchedulerStatus.Active:
+                        _taskQueue.Enqueue(task);
+                        break;
+                    case ActorTaskSchedulerStatus.Paused:
+                        if (actorTaskContext.Kind == ActorTaskKind.Resumer)
+                        {
+                            _statusManager.MarkActive();
+                            LaunchNew(task);
+                        }
+                        else
+                        {
+                            _taskQueue.Enqueue(task);
+                        }
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
             }
         }
 
@@ -73,6 +101,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
         private enum YieldReason
         {
             None = 0,
+            Paused,
             Terminated,
             QueueEmpty
         }
@@ -94,11 +123,13 @@ namespace Winton.Extensions.Threading.Actor.Internal
                         {
                             switch (CheckForReasonToYield())
                             {
+                                case YieldReason.Paused:
+                                    break;
                                 case YieldReason.Terminated:
                                     ClearTaskQueue();
                                     break;
                                 case YieldReason.QueueEmpty:
-                                    _state.MarkInactive();
+                                    _statusManager.MarkInactive();
                                     break;
                                 case YieldReason.None:
                                     LaunchNew(_taskQueue.Dequeue());
@@ -122,13 +153,16 @@ namespace Winton.Extensions.Threading.Actor.Internal
                             {
                                 switch (CheckForReasonToYield())
                                 {
+                                    case YieldReason.Paused:
+                                        CleanUpAfterExecute();
+                                        return;
                                     case YieldReason.Terminated:
                                         CleanUpAfterExecute();
                                         ClearTaskQueue();
                                         return;
                                     case YieldReason.QueueEmpty:
                                         CleanUpAfterExecute();
-                                        _state.MarkInactive();
+                                        _statusManager.MarkInactive();
                                         return;
                                     case YieldReason.None:
                                         task = _taskQueue.Dequeue();
@@ -150,21 +184,28 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
         private void PrepareForExecute()
         {
+            _currentActorScheduler = this;
             SynchronizationContext.SetSynchronizationContext(_synchronizationContext);
             Actor.CurrentId = _actorId;
         }
 
         private void CleanUpAfterExecute()
         {
+            _currentActorScheduler = null;
             SynchronizationContext.SetSynchronizationContext(null);
             Actor.CurrentId = ActorId.None;
         }
 
         private YieldReason CheckForReasonToYield()
         {
-            if (_state.IsTerminated)
+            if (_statusManager.State == ActorTaskSchedulerStatus.Terminated)
             {
                 return YieldReason.Terminated;
+            }
+
+            if (_statusManager.State == ActorTaskSchedulerStatus.Paused)
+            {
+                return YieldReason.Paused;
             }
 
             if (_taskQueue.Count == 0)

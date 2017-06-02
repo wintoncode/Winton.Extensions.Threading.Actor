@@ -875,6 +875,76 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             attempts.Should().Be(0);
         }
 
+        [Fact]
+        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwait()
+        {
+            var actor = CreateActor();
+            var numbers = new List<int>();
+
+            await actor.Start();
+
+            var tasks =
+                new[]
+                {
+                    actor.Enqueue(
+                        async () =>
+                        {
+                            numbers.Add(1);
+
+                            await Task.Delay(TimeSpan.FromSeconds(1)).WhileActorPaused();
+
+                            numbers.Add(2);
+                        }),
+                    actor.Enqueue(() => numbers.Add(3)),
+                    actor.Enqueue(() => numbers.Add(4)),
+                    actor.Enqueue(() => numbers.Add(5))
+                };
+
+            await Task.WhenAll(tasks);
+
+            numbers.Should().Equal(1, 2, 3, 4, 5);
+        }
+
+        [Fact]
+        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwaitReturningData()
+        {
+            var actor = CreateActor();
+            var numbers = new List<int>();
+            var promise = new TaskCompletionSource<int>();
+
+            await actor.Start();
+
+            var tasks =
+                new[]
+                {
+                    actor.Enqueue(
+                        async () =>
+                        {
+                            numbers.Add(1);
+
+                            var next = await promise.Task.WhileActorPaused();
+
+                            numbers.Add(next);
+                        }),
+                    actor.Enqueue(() => numbers.Add(3)),
+                    actor.Enqueue(() => numbers.Add(4)),
+                    actor.Enqueue(() => numbers.Add(5))
+                };
+
+            var promiseSetter =
+                Task.Run(
+                    async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1));
+                        promise.SetResult(2);
+                    });
+
+            await Task.WhenAll(tasks);
+            await promiseSetter;
+
+            numbers.Should().Equal(1, 2, 3, 4, 5);
+        }
+
         [Flags]
         private enum ActorCreateOptions
         {

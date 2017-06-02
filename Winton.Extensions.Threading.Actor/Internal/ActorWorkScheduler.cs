@@ -77,7 +77,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
             await enqueuer().ConfigureAwait(false);
 
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 await GetDelay(interval, cancellationToken).ConfigureAwait(false);
                 await enqueuer().ConfigureAwait(false);
