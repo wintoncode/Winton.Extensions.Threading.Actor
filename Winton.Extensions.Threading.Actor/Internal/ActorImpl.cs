@@ -16,12 +16,12 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
         public ActorStartWork StartWork
         {
-            set { Context.StartWork = value; }
+            set => Context.StartWork = value;
         }
 
         public ActorStopWork StopWork
         {
-            set { Context.StopWork = value; }
+            set => Context.StopWork = value;
         }
 
         public Task Start()
