@@ -31,7 +31,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         public ActorStartWork StartWork
         {
-            get { return _startWork; }
+            get => _startWork;
             set
             {
                 if (value == null)
@@ -57,7 +57,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         public ActorStopWork StopWork
         {
-            get { return _stopWork; }
+            get => _stopWork;
             set
             {
                 if (value == null)

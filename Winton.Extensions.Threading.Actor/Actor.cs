@@ -46,8 +46,8 @@ namespace Winton.Extensions.Threading.Actor
         /// </summary>
         public static ActorId CurrentId
         {
-            get { return _currentId; }
-            internal set { _currentId = value; }
+            get => _currentId;
+            internal set => _currentId = value;
         }
 
         /// <inheritdoc cref="IActor.Id"/>
@@ -56,13 +56,13 @@ namespace Winton.Extensions.Threading.Actor
         /// <inheritdoc cref="IActor.StartWork"/>
         public ActorStartWork StartWork
         {
-            set { _impl.StartWork = value; }
+            set => _impl.StartWork = value;
         }
 
         /// <inheritdoc cref="IActor.StopWork"/>
         public ActorStopWork StopWork
         {
-            set { _impl.StopWork = value; }
+            set => _impl.StopWork = value;
         }
 
         /// <inheritdoc cref="IActor.Start"/>

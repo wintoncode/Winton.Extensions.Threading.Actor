@@ -134,8 +134,34 @@ the actor is not blocked.
 to `GetEmployee` for different employee ids or _the same_ employee id.
 In the latter case a second call to the database will occur.
 The code could be engineered to prevent this if desired but let's assume we don't mind the odd extra call to the database.
+   * If we did want to prevent this one way would be to pause the actor whilst we wait for the database to return. In this particular case that would probably be a little heavy-handed but a means of doing this is described below.
 1. Finally, if the call to the database causes an exception because, say, no employee exists for the given `payrollId` then that exception
 will be passed up to the code that called into the `EmployeeCache` object.
+
+### Pausing the actor during an `await`
+
+Let's say you wanted to ensure only one call to the database to get an employee.
+A rather blunt way of doing that would be to essentially pause the actor until the database call returns.
+You'd achieve that using the `WhileActorPaused` extension:
+
+```csharp
+        public Task<Employee> GetEmployee(int payrollId)
+        {
+            return _actor.Enqueue(
+                async () =>
+                {
+                    if (!_cache.ContainsKey(payrollId))
+                    {
+                        _cache[payrollId] = await _database.GetEmployee(payrollId).WhileActorPaused();
+                    }
+
+                    return _cache[payrollId];
+                });
+        }
+```
+
+Essentially this will prevent the actor from doing anything at all until the task returned by `_database.GetEmployee(payrollId)` completes and the first thing processed by the actor when it resumes will be the continuation after the call (i.e. `_cache[payrollId] = ...`).
+This device should be used with caution - and would most likely be inappropriate in the case of this example - but could be useful in some circumstances.
 
 ## Specifying work to do when the actor starts
 
