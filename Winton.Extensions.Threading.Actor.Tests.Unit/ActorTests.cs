@@ -875,74 +875,86 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             attempts.Should().Be(0);
         }
 
-        [Fact]
-        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwait()
+        [Theory]
+        [InlineData(ActorEnqueueOptions.Default, ActorEnqueueOptions.Default)]
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, ActorEnqueueOptions.Default)]
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, ActorEnqueueOptions.WorkIsLongRunning)]
+        [InlineData(ActorEnqueueOptions.Default, ActorEnqueueOptions.WorkIsLongRunning)]
+        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwait(ActorEnqueueOptions awaiterOptions, ActorEnqueueOptions otherOptions)
         {
-            var actor = CreateActor();
-            var numbers = new List<int>();
+            // Do this repeatedly to try to expose race conditions in the pausing logic
+            for (var i = 0; i < 1000; i++)
+            {
+                var actor = new Actor();
+                var numbers = new List<int>();
 
-            await actor.Start();
+                await actor.Start();
 
-            var tasks =
-                new[]
-                {
+                var tasks = new Task[3];
+
+                tasks[0] =
                     actor.Enqueue(
                         async () =>
                         {
-                            numbers.Add(1);
+                            numbers.Add(i);
+                            var task = Task.Run(() => numbers.Add(i + 1));
+                            await task.WhileActorPaused();
+                            numbers.Add(i + 2);
+                        }, awaiterOptions);
+                tasks[1] = actor.Enqueue(() => numbers.Add(i + 3), otherOptions);
+                tasks[2] = actor.Enqueue(() => numbers.Add(i + 4), otherOptions);
 
-                            await Task.Delay(TimeSpan.FromSeconds(1)).WhileActorPaused();
+                foreach (var task in tasks)
+                {
+                    await task;
+                }
 
-                            numbers.Add(2);
-                        }),
-                    actor.Enqueue(() => numbers.Add(3)),
-                    actor.Enqueue(() => numbers.Add(4)),
-                    actor.Enqueue(() => numbers.Add(5))
-                };
+                await actor.Stop();
 
-            await Task.WhenAll(tasks);
-
-            numbers.Should().Equal(1, 2, 3, 4, 5);
+                numbers.Should().Equal(i, i + 1, i + 2, i + 3, i + 4);
+            }
         }
 
-        [Fact]
-        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwaitReturningData()
+        [Theory]
+        [InlineData(ActorEnqueueOptions.Default, ActorEnqueueOptions.Default)]
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, ActorEnqueueOptions.Default)]
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, ActorEnqueueOptions.WorkIsLongRunning)]
+        [InlineData(ActorEnqueueOptions.Default, ActorEnqueueOptions.WorkIsLongRunning)]
+        public async Task ShouldBeAbleToPauseActorUntilResumeFromAwaitReturningData(ActorEnqueueOptions awaiterOptions, ActorEnqueueOptions otherOptions)
         {
-            var actor = CreateActor();
-            var numbers = new List<int>();
-            var promise = new TaskCompletionSource<int>();
+            // Do this repeatedly to try to expose race conditions in the pausing logic
+            for (var i = 0; i < 1000; i++)
+            {
+                var actor = CreateActor();
+                var numbers = new List<int>();
 
-            await actor.Start();
+                await actor.Start();
 
-            var tasks =
-                new[]
-                {
+                var tasks = new Task[4];
+
+                tasks[0] = 
                     actor.Enqueue(
-                        async () =>
-                        {
-                            numbers.Add(1);
-
-                            var next = await promise.Task.WhileActorPaused();
-
-                            numbers.Add(next);
-                        }),
-                    actor.Enqueue(() => numbers.Add(3)),
-                    actor.Enqueue(() => numbers.Add(4)),
-                    actor.Enqueue(() => numbers.Add(5))
-                };
-
-            var promiseSetter =
-                Task.Run(
                     async () =>
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(1));
-                        promise.SetResult(2);
-                    });
+                        numbers.Add(i);
 
-            await Task.WhenAll(tasks);
-            await promiseSetter;
+                        var next = await Task.Run(() => i + 1).WhileActorPaused();
 
-            numbers.Should().Equal(1, 2, 3, 4, 5);
+                        numbers.Add(next);
+                    }, awaiterOptions);
+                tasks[1] = actor.Enqueue(() => numbers.Add(i + 2), otherOptions);
+                tasks[2] = actor.Enqueue(() => numbers.Add(i + 3), otherOptions);
+                tasks[3] = actor.Enqueue(() => numbers.Add(i + 4), otherOptions);
+
+                foreach (var task in tasks)
+                {
+                    await task;
+                }
+
+                await actor.Stop();
+
+                numbers.Should().Equal(i, i + 1, i + 2, i + 3, i + 4);
+            }
         }
 
         [Flags]
