@@ -18,6 +18,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
         private readonly IWorkItemQueuer _workItemQueuer;
 
         private ActorSynchronizationContext _resumingSynchronizationContext;
+        private Task _resumingTask;
 
         public ActorTaskScheduler(ActorId actorId, IWorkItemQueuer workItemQueuer, IActorTaskFactory actorTaskFactory)
         {
@@ -38,18 +39,30 @@ namespace Winton.Extensions.Threading.Actor.Internal
             }
         }
 
-        public void WhileActorPaused(Task task)
+        public ActorPauseAwaitable WhileActorPaused(Task task)
+        {
+            Pause();
+            return new ActorPauseAwaitable(task);
+        }
+
+        public ActorPauseAwaitable<T> WhileActorPaused<T>(Task<T> task)
+        {
+            Pause();
+            return new ActorPauseAwaitable<T>(task);
+        }
+
+        private bool HaveActiveThread { get; set; }
+
+        private void Pause()
         {
             lock (_lockObject)
             {
-                if (_statusManager.State == ActorTaskSchedulerStatus.Terminated)
+                if (_statusManager.State != ActorTaskSchedulerStatus.Terminated)
                 {
-                    return;
+                    _resumingSynchronizationContext = _resumingSynchronizationContext ?? _synchronizationContext.ChangeActorTaskKind(ActorTaskKind.Resumer);
+                    SynchronizationContext.SetSynchronizationContext(_resumingSynchronizationContext);
+                    _statusManager.MarkPaused();
                 }
-
-                _resumingSynchronizationContext = _resumingSynchronizationContext ?? _synchronizationContext.ChangeActorTaskKind(ActorTaskKind.Resumer);
-                SynchronizationContext.SetSynchronizationContext(_resumingSynchronizationContext);
-                _statusManager.MarkPaused();
             }
         }
 
@@ -75,7 +88,15 @@ namespace Winton.Extensions.Threading.Actor.Internal
                         if (actorTaskContext.Kind == ActorTaskKind.Resumer)
                         {
                             _statusManager.MarkActive();
-                            LaunchNew(task);
+
+                            if (HaveActiveThread)
+                            {
+                                _resumingTask = task;
+                            }
+                            else
+                            {
+                                LaunchNew(task);
+                            }
                         }
                         else
                         {
@@ -108,6 +129,8 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
         private void LaunchNew(Task task)
         {
+            HaveActiveThread = true;
+
             if (!task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
             {
                 _workItemQueuer.QueueOnThreadPoolThread(
@@ -121,6 +144,8 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
                         lock (_lockObject)
                         {
+                            HaveActiveThread = false;
+
                             switch (CheckForReasonToYield())
                             {
                                 case YieldReason.Paused:
@@ -132,7 +157,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
                                     _statusManager.MarkInactive();
                                     break;
                                 case YieldReason.None:
-                                    LaunchNew(_taskQueue.Dequeue());
+                                    LaunchNew(GetNextTask());
                                     break;
                             }
                         }
@@ -143,35 +168,47 @@ namespace Winton.Extensions.Threading.Actor.Internal
                 _workItemQueuer.QueueOnNonThreadPoolThread(
                     () =>
                     {
+                        var continueExecuting = true;
                         PrepareForExecute();
 
-                        while (true)
+                        while (continueExecuting)
                         {
                             TryExecuteTask(task);
 
                             lock (_lockObject)
                             {
+                                continueExecuting = false;
+
                                 switch (CheckForReasonToYield())
                                 {
                                     case YieldReason.Paused:
-                                        CleanUpAfterExecute();
-                                        return;
+                                        break;
                                     case YieldReason.Terminated:
-                                        CleanUpAfterExecute();
                                         ClearTaskQueue();
-                                        return;
+                                        break;
                                     case YieldReason.QueueEmpty:
-                                        CleanUpAfterExecute();
                                         _statusManager.MarkInactive();
-                                        return;
+                                        break;
                                     case YieldReason.None:
-                                        task = _taskQueue.Dequeue();
+                                        task = GetNextTask();
+                                        continueExecuting = true;
                                         break;
                                 }
+
+                                HaveActiveThread = continueExecuting;
                             }
                         }
+
+                        CleanUpAfterExecute();
                     });
             }
+        }
+
+        private Task GetNextTask()
+        {
+            var nextTask = _resumingTask ?? _taskQueue.Dequeue();
+            _resumingTask = null;
+            return nextTask;
         }
 
         private void ClearTaskQueue()
@@ -208,7 +245,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
                 return YieldReason.Paused;
             }
 
-            if (_taskQueue.Count == 0)
+            if (_resumingTask == null && _taskQueue.Count == 0)
             {
                 return YieldReason.QueueEmpty;
             }
