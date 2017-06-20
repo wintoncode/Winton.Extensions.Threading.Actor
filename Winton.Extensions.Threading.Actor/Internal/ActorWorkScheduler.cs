@@ -82,6 +82,8 @@ namespace Winton.Extensions.Threading.Actor.Internal
                 await GetDelay(interval, cancellationToken).ConfigureAwait(false);
                 await enqueuer().ConfigureAwait(false);
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         private Task GetDelay(TimeSpan interval, CancellationToken cancellationToken)
