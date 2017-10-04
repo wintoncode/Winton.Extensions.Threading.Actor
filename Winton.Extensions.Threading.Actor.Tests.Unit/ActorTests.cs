@@ -384,6 +384,41 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             stageOrder.Should().Equal(expectedStageOrder);
         }
 
+        [Fact]
+        public async Task ShouldCompleteStoppedTaskWhenStopCompleted()
+        {
+            var stageOrder = new List<string>();
+            var expectedStageOrder =
+                new List<string>
+                {
+                    "Start",
+                    "Stop",
+                    "Stopped"
+                };
+            var actor = CreateActor(x =>
+                                    {
+                                        x.StartWork = new ActorStartWork(() => stageOrder.Add("Start"));
+                                        x.StopWork = new ActorStopWork(
+                                            () =>
+                                            {
+                                                Thread.Sleep(TimeSpan.FromMilliseconds(250));
+                                                stageOrder.Add("Stop");
+                                            });
+                                    },
+                                    ActorCreateOptions.None);
+
+            await actor.Start();
+
+            var stopTask = actor.Stop();
+
+            await actor.StoppedTask;
+            stageOrder.Add("Stopped");
+
+            await stopTask;
+
+            stageOrder.Should().Equal(expectedStageOrder);
+        }
+
         [Theory]
         [InlineData(ResumeTestCase.AwaitOnTaskFactoryScheduledTask, StopWorkOutcome.Completes)]
         [InlineData(ResumeTestCase.AwaitOnTaskFactoryScheduledTask, StopWorkOutcome.Faults)]

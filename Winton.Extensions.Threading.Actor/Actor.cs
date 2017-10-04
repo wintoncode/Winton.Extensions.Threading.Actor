@@ -8,9 +8,7 @@ using Winton.Extensions.Threading.Actor.Internal;
 
 namespace Winton.Extensions.Threading.Actor
 {
-    /// <summary>
-    /// Factories and extensions for actors.
-    /// </summary>
+    /// <inheritdoc />
     public sealed class Actor : IActor
     {
         [ThreadStatic]
@@ -50,20 +48,23 @@ namespace Winton.Extensions.Threading.Actor
             internal set => _currentId = value;
         }
 
-        /// <inheritdoc cref="IActor.Id"/>
+        /// <inheritdoc />
         public ActorId Id => _impl.Id;
 
-        /// <inheritdoc cref="IActor.StartWork"/>
+        /// <inheritdoc />
         public ActorStartWork StartWork
         {
             set => _impl.StartWork = value;
         }
 
-        /// <inheritdoc cref="IActor.StopWork"/>
+        /// <inheritdoc />
         public ActorStopWork StopWork
         {
             set => _impl.StopWork = value;
         }
+
+        /// <inheritdoc />
+        public Task StoppedTask => _impl.StoppedTask;
 
         /// <inheritdoc cref="IActor.Start"/>
         public Task Start()
@@ -71,31 +72,31 @@ namespace Winton.Extensions.Threading.Actor
             return _impl.Start();
         }
 
-        /// <inheritdoc cref="IActor.Stop"/>
+        /// <inheritdoc />
         public Task Stop()
         {
             return _impl.Stop();
         }
 
-        /// <inheritdoc cref="IActor.Enqueue(Action,CancellationToken,ActorEnqueueOptions)"/>
+        /// <inheritdoc />
         public Task Enqueue(Action action, CancellationToken cancellationToken, ActorEnqueueOptions options)
         {
             return _impl.Enqueue(action, cancellationToken, options);
         }
 
-        /// <inheritdoc cref="IActor.Enqueue{T}(Func{T},CancellationToken,ActorEnqueueOptions)"/>
+        /// <inheritdoc />
         public Task<T> Enqueue<T>(Func<T> function, CancellationToken cancellationToken, ActorEnqueueOptions options)
         {
             return _impl.Enqueue(function, cancellationToken, options);
         }
 
-        /// <inheritdoc cref="IActor.Enqueue(Func{Task},CancellationToken,ActorEnqueueOptions)"/>
+        /// <inheritdoc />
         public Task Enqueue(Func<Task> asyncAction, CancellationToken cancellationToken, ActorEnqueueOptions options)
         {
             return _impl.Enqueue(asyncAction, cancellationToken, options);
         }
 
-        /// <inheritdoc cref="IActor.Enqueue{T}(Func{Task{T}},CancellationToken,ActorEnqueueOptions)"/>
+        /// <inheritdoc />
         public Task<T> Enqueue<T>(Func<Task<T>> asyncFunction, CancellationToken cancellationToken, ActorEnqueueOptions options)
         {
             return _impl.Enqueue(asyncFunction, cancellationToken, options);
