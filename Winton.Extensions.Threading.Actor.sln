@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.13
+VisualStudioVersion = 15.0.26730.10
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libraries", "Libraries", "{F9C63802-0833-4F6F-A220-3193ACA0FC67}"
 EndProject
@@ -11,7 +11,20 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Winton.Extensions.Threading
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Winton.Extensions.Threading.Actor.Tests.Utilities", "Winton.Extensions.Threading.Actor.Tests.Utilities\Winton.Extensions.Threading.Actor.Tests.Utilities.csproj", "{883DBF40-69C9-4DBD-BA3D-95C0AFB38F2A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Winton.Extensions.Threading.Actor.Tests.Unit", "Winton.Extensions.Threading.Actor.Tests.Unit\Winton.Extensions.Threading.Actor.Tests.Unit.csproj", "{03F4D9C3-DEF8-4BCC-BFA6-EA42411277FD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Winton.Extensions.Threading.Actor.Tests.Unit", "Winton.Extensions.Threading.Actor.Tests.Unit\Winton.Extensions.Threading.Actor.Tests.Unit.csproj", "{03F4D9C3-DEF8-4BCC-BFA6-EA42411277FD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3A0C5AA3-92FF-4242-BF3E-052AB13A5DED}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		.travis.yml = .travis.yml
+		appveyor.yml = appveyor.yml
+		build.ps1 = build.ps1
+		build.sh = build.sh
+		CONTRIBUTING.md = CONTRIBUTING.md
+		LICENSE = LICENSE
+		README.md = README.md
+		USAGE.md = USAGE.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,5 +52,8 @@ Global
 		{D49362C6-FA0A-4528-B00F-ACA765E7533F} = {F9C63802-0833-4F6F-A220-3193ACA0FC67}
 		{883DBF40-69C9-4DBD-BA3D-95C0AFB38F2A} = {F9C63802-0833-4F6F-A220-3193ACA0FC67}
 		{03F4D9C3-DEF8-4BCC-BFA6-EA42411277FD} = {E354296E-63FA-4DBA-9DBE-D4E135103671}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {572EA2FB-BC0C-4C96-8DA6-3662C9A8F121}
 	EndGlobalSection
 EndGlobal

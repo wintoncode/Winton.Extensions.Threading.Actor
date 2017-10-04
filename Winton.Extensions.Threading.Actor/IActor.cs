@@ -37,6 +37,11 @@ namespace Winton.Extensions.Threading.Actor
         ActorStopWork StopWork { set; }
 
         /// <summary>
+        /// This task completes when the actor stops.
+        /// </summary>
+        Task StoppedTask { get; }
+
+        /// <summary>
         /// Start the actor.
         /// </summary>
         /// <remarks>
