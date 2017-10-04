@@ -7,6 +7,8 @@ namespace Winton.Extensions.Threading.Actor.Internal
 {
     internal sealed class ActorImpl : IActor
     {
+        private readonly TaskCompletionSource<object> _stoppedPromise = new TaskCompletionSource<object>();
+
         public ActorImpl(IActorTaskFactory actorTaskFactory)
         {
             Context = new ActorContext(actorTaskFactory);
@@ -24,14 +26,17 @@ namespace Winton.Extensions.Threading.Actor.Internal
             set => Context.StopWork = value;
         }
 
+        public Task StoppedTask => _stoppedPromise.Task;
+
         public Task Start()
         {
             return Context.Start();
         }
 
-        public Task Stop()
+        public async Task Stop()
         {
-            return Context.Stop();
+            await Context.Stop();
+            _stoppedPromise.TrySetResult(null);
         }
 
         public Task Enqueue(Action action, CancellationToken cancellationToken, ActorEnqueueOptions options)
