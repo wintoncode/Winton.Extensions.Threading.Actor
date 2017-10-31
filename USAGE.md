@@ -161,7 +161,12 @@ You'd achieve that using the `WhileActorPaused` extension:
 ```
 
 Essentially this will prevent the actor from doing anything at all until the task returned by `_database.GetEmployee(payrollId)` completes and the first thing processed by the actor when it resumes will be the continuation after the call (i.e. `_cache[payrollId] = ...`).
+
 This device should be used with caution - and would most likely be inappropriate in the case of this example - but could be useful in some circumstances.
+Issues can arise with an actor being paused permanently if library code does not use `ConfigureAwait(false)` when awaiting.
+For instance, if an implementation of `IEmployeeDatabase.GetEmployee` itself awaited something without using `ConfigureAwait(false)`, then it's likely that the continuation of that await would be scheduled on the actor's work queue.
+But, as the actor has been paused, that continuation will never be executed.
+Consequently, the continuation of `await _database.GetEmployee(payrollId).WhileActorPaused()` will never be scheduled on the actor and it's the scheduling of this that unpauses the actor.
 
 ## Specifying work to do when the actor starts
 
