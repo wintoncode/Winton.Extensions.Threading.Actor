@@ -10,7 +10,7 @@ branches:
   except:
   - /^[0-9]/
 
-dotnet: 1.0.1
+dotnet: 2.0.5
 
 mono: none
   
