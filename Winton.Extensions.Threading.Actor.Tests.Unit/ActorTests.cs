@@ -992,6 +992,27 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             }
         }
 
+        [Fact]
+        public async Task ShutdownShouldReturnImmediatelyIfStartWorkFails()
+        {
+            var stopWorkCalled = false;
+            var actor =
+                new Actor
+                {
+                    StartWork = new ActorStartWork(() => throw new Exception("Error.")),
+                    StopWork = new ActorStopWork(() => stopWorkCalled = true)
+                };
+
+            actor.Awaiting(async x => await x.Start()).ShouldThrow<Exception>().WithMessage("Error.");
+
+            var stopperThreadId = Thread.CurrentThread.ManagedThreadId;
+
+            await actor.Stop();
+
+            Thread.CurrentThread.ManagedThreadId.Should().Be(stopperThreadId);
+            stopWorkCalled.Should().BeFalse();
+        }
+
         [Flags]
         private enum ActorCreateOptions
         {
