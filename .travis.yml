@@ -10,9 +10,17 @@ branches:
   except:
   - /^[0-9]/
 
-dotnet: 2.0.5
-
+dotnet: 2.1.4
 mono: none
+
+addons:
+  apt:
+    sources:
+    - sourceline: 'deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-trusty-prod trusty main'
+      key_url: 'https://packages.microsoft.com/keys/microsoft.asc'
+    packages:
+    - dotnet-hostfxr-1.0.1
+    - dotnet-sharedframework-microsoft.netcore.app-1.0.9
   
 script:
   - (git fetch --unshallow 2>/dev/null || echo "Already full repo.")
