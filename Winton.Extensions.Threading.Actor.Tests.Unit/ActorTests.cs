@@ -475,27 +475,23 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     "PostTriggerWait"
                 };
 
+            Func<int> offActorWork =
+                () =>
+                   {
+                       stages.Add("PreTriggerWait");
+                       pretrigger.SetResult(true);
+                       ThrowIfWaitTimesOut(trigger.Task);
+                       stages.Add("PostTriggerWait");
+                       return 345;
+                   };
+
             switch (resumeTestCase)
             {
                 case ResumeTestCase.AwaitOnSecondActor:
-                    suspendWork = () => actor2.Enqueue(() =>
-                                                       {
-                                                           stages.Add("PreTriggerWait");
-                                                           pretrigger.SetResult(true);
-                                                           ThrowIfWaitTimesOut(trigger.Task);
-                                                           stages.Add("PostTriggerWait");
-                                                           return 345;
-                                                       });
+                    suspendWork = () => actor2.Enqueue(offActorWork);
                     break;
                 case ResumeTestCase.AwaitOnTaskFactoryScheduledTask:
-                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(() =>
-                                                                                        {
-                                                                                            stages.Add("PreTriggerWait");
-                                                                                            pretrigger.SetResult(true);
-                                                                                            ThrowIfWaitTimesOut(trigger.Task);
-                                                                                            stages.Add("PostTriggerWait");
-                                                                                            return 345;
-                                                                                        });
+                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(offActorWork);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {resumeTestCase}.");
