@@ -423,13 +423,6 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         public async Task ShouldCancelStoppedTokenWhenStopCompleted()
         {
             var stageOrder = new List<string>();
-            var expectedStageOrder =
-                new List<string>
-                {
-                    "Start",
-                    "Stop",
-                    "Cancelled"
-                };
             var actor = CreateActor(x =>
                                     {
                                         x.StartWork = new ActorStartWork(() => stageOrder.Add("Start"));
@@ -444,13 +437,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            var cancellationRegistrationToken = actor.StoppedToken().Register(() => stageOrder.Add("Cancelled"));
+            var cancellationToken = actor.StoppedToken();
+
+            cancellationToken.IsCancellationRequested.Should().BeFalse();
 
             await actor.Stop();
 
-            stageOrder.Should().Equal(expectedStageOrder);
-
-            cancellationRegistrationToken.Dispose();
+            cancellationToken.IsCancellationRequested.Should().BeTrue();
         }
 
         [Theory]
