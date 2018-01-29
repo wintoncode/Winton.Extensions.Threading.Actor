@@ -780,7 +780,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void ShouldBeAbleToCancelAnyEnqueuedWork(bool delayStart)
+        public async Task ShouldBeAbleToCancelAnyEnqueuedWork(bool delayStart)
         {
             var actor = CreateActor(delayStart ? ActorCreateOptions.None : ActorCreateOptions.Start);
 
@@ -827,13 +827,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             if (delayStart)
             {
-                actor.Start();
+                await actor.Start();
             }
 
-            task1.AwaitingShouldCompleteIn(_waitTimeout);
-            task4.AwaitingShouldCompleteIn(_waitTimeout);
-            task6.AwaitingShouldCompleteIn(_waitTimeout);
-            task8.AwaitingShouldCompleteIn(_waitTimeout);
+            await task1;
+            await task4;
+            await task6;
+            await task8;
             ShouldBeCancelled(task2);
             ShouldBeCancelled(task3);
             ShouldBeCancelled(task5);
