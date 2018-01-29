@@ -1018,7 +1018,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Fact]
-        public async Task ShutdownShouldReturnImmediatelyIfStartWorkFails()
+        public async Task StopShouldNotRunStopWorkIfStartWorkFails()
         {
             var stopWorkCalled = false;
             var actor =
@@ -1030,11 +1030,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             actor.Awaiting(async x => await x.Start()).ShouldThrow<Exception>().WithMessage("Error.");
 
-            var stopperThreadId = Thread.CurrentThread.ManagedThreadId;
-
             await actor.Stop();
 
-            Thread.CurrentThread.ManagedThreadId.Should().Be(stopperThreadId);
             stopWorkCalled.Should().BeFalse();
         }
 
