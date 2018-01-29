@@ -16,7 +16,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
             {
                 StartImpl();
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!Context.StartCompletionSource.Task.IsCompleted)
             {
                 Context.StartCompletionSource.SetException(exception);
             }
@@ -30,7 +30,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
             {
                 StopImpl();
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!Context.StopCompletionSource.Task.IsCompleted)
             {
                 Context.StopCompletionSource.SetException(exception);
             }
