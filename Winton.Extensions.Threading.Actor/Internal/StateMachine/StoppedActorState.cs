@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
@@ -25,13 +24,6 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         protected override void EnterImpl()
         {
-            foreach (var task in Context.InitialWorkQueue.Concat(Context.InitialWorkToBeCancelledQueue))
-            {
-                task.Cancel();
-            }
-
-            Context.InitialWorkQueue.Clear();
-            Context.InitialWorkToBeCancelledQueue.Clear();
         }
     }
 }

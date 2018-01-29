@@ -25,9 +25,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         protected override void StopImpl()
         {
-            Context.StartCompletionSource.SetResult(true);
-            Context.StopCompletionSource.SetResult(true);
-            Context.SetState<StoppedActorState>();
+            Context.SetState<StoppingActorState>();
         }
 
         protected override void ScheduleImpl(Task task)
