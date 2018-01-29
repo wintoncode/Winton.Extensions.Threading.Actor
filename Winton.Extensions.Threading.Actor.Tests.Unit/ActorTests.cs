@@ -437,13 +437,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            var cancellationToken = actor.StoppedToken();
+            var cancelledPromise = new TaskCompletionSource<object>();
 
-            cancellationToken.IsCancellationRequested.Should().BeFalse();
+            var cancellationRegistrationToken = actor.StoppedToken().Register(() => cancelledPromise.SetResult(null));
 
             await actor.Stop();
 
-            cancellationToken.IsCancellationRequested.Should().BeTrue();
+            cancelledPromise.Task.Wait(TimeSpan.FromMilliseconds(1000)).Should().BeTrue();
+
+            cancellationRegistrationToken.Dispose();
         }
 
         [Theory]
