@@ -25,7 +25,7 @@ dotnet build ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Act
 echo
 
 echo "Testing ..."
-dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --no-build --no-restore --configuration Release --framework netcoreapp1.0
+dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --configuration Release --framework netcoreapp1.0
 echo
 
 if [ "${TRAVIS:-}" != "true" ]; then
