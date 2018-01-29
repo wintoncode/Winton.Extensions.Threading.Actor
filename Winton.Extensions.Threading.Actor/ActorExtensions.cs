@@ -202,5 +202,32 @@ namespace Winton.Extensions.Threading.Actor
         {
             return self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
         }
+
+        /// <summary>
+        /// Returns a <see cref="CancellationToken"/> that is cancelled when the given actor stops.
+        /// </summary>
+        /// <param name="self">The actor.</param>
+        /// <returns></returns>
+        public static CancellationToken StoppedToken(this IActor self)
+        {
+            var cancellationTokenSource = new CancellationTokenSource();
+
+            Task.Run(
+                async () =>
+                {
+                    try
+                    {
+                        await self.StoppedTask;
+                    }
+                    catch
+                    {
+                    }
+
+                    cancellationTokenSource.Cancel();
+                    cancellationTokenSource.Dispose();
+                });
+
+            return cancellationTokenSource.Token;
+        }
     }
 }
