@@ -419,6 +419,35 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             stageOrder.Should().Equal(expectedStageOrder);
         }
 
+        [Fact]
+        public async Task ShouldCancelStoppedTokenWhenStopCompleted()
+        {
+            var stageOrder = new List<string>();
+            var actor = CreateActor(x =>
+                                    {
+                                        x.StartWork = new ActorStartWork(() => stageOrder.Add("Start"));
+                                        x.StopWork = new ActorStopWork(
+                                            () =>
+                                            {
+                                                Thread.Sleep(TimeSpan.FromMilliseconds(250));
+                                                stageOrder.Add("Stop");
+                                            });
+                                    },
+                                    ActorCreateOptions.None);
+
+            await actor.Start();
+
+            var cancelledPromise = new TaskCompletionSource<object>();
+
+            var cancellationRegistrationToken = actor.StoppedToken().Register(() => cancelledPromise.SetResult(null));
+
+            await actor.Stop();
+
+            cancelledPromise.Task.Wait(TimeSpan.FromMilliseconds(1000)).Should().BeTrue();
+
+            cancellationRegistrationToken.Dispose();
+        }
+
         [Theory]
         [InlineData(ResumeTestCase.AwaitOnTaskFactoryScheduledTask, StopWorkOutcome.Completes)]
         [InlineData(ResumeTestCase.AwaitOnTaskFactoryScheduledTask, StopWorkOutcome.Faults)]
@@ -446,27 +475,23 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     "PostTriggerWait"
                 };
 
+            Func<int> offActorWork =
+                () =>
+                   {
+                       stages.Add("PreTriggerWait");
+                       pretrigger.SetResult(true);
+                       ThrowIfWaitTimesOut(trigger.Task);
+                       stages.Add("PostTriggerWait");
+                       return 345;
+                   };
+
             switch (resumeTestCase)
             {
                 case ResumeTestCase.AwaitOnSecondActor:
-                    suspendWork = () => actor2.Enqueue(() =>
-                                                       {
-                                                           stages.Add("PreTriggerWait");
-                                                           pretrigger.SetResult(true);
-                                                           ThrowIfWaitTimesOut(trigger.Task);
-                                                           stages.Add("PostTriggerWait");
-                                                           return 345;
-                                                       });
+                    suspendWork = () => actor2.Enqueue(offActorWork);
                     break;
                 case ResumeTestCase.AwaitOnTaskFactoryScheduledTask:
-                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(() =>
-                                                                                        {
-                                                                                            stages.Add("PreTriggerWait");
-                                                                                            pretrigger.SetResult(true);
-                                                                                            ThrowIfWaitTimesOut(trigger.Task);
-                                                                                            stages.Add("PostTriggerWait");
-                                                                                            return 345;
-                                                                                        });
+                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(offActorWork);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {resumeTestCase}.");
@@ -755,7 +780,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void ShouldBeAbleToCancelAnyEnqueuedWork(bool delayStart)
+        public async Task ShouldBeAbleToCancelAnyEnqueuedWork(bool delayStart)
         {
             var actor = CreateActor(delayStart ? ActorCreateOptions.None : ActorCreateOptions.Start);
 
@@ -802,13 +827,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             if (delayStart)
             {
-                actor.Start();
+                await actor.Start();
             }
 
-            task1.AwaitingShouldCompleteIn(_waitTimeout);
-            task4.AwaitingShouldCompleteIn(_waitTimeout);
-            task6.AwaitingShouldCompleteIn(_waitTimeout);
-            task8.AwaitingShouldCompleteIn(_waitTimeout);
+            await task1;
+            await task4;
+            await task6;
+            await task8;
             ShouldBeCancelled(task2);
             ShouldBeCancelled(task3);
             ShouldBeCancelled(task5);
@@ -993,7 +1018,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Fact]
-        public async Task ShutdownShouldReturnImmediatelyIfStartWorkFails()
+        public async Task StopShouldNotRunStopWorkIfStartWorkFails()
         {
             var stopWorkCalled = false;
             var actor =
@@ -1005,11 +1030,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             actor.Awaiting(async x => await x.Start()).ShouldThrow<Exception>().WithMessage("Error.");
 
-            var stopperThreadId = Thread.CurrentThread.ManagedThreadId;
-
             await actor.Stop();
 
-            Thread.CurrentThread.ManagedThreadId.Should().Be(stopperThreadId);
             stopWorkCalled.Should().BeFalse();
         }
 
