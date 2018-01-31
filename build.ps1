@@ -25,5 +25,5 @@ function Exec
 exec { & dotnet restore }
 exec { & dotnet clean }
 exec { & dotnet build --configuration Release }
-exec { & dotnet test --no-build --configuration Release Winton.Extensions.Threading.Actor.Tests.Unit\Winton.Extensions.Threading.Actor.Tests.Unit.csproj }
-exec { & dotnet pack --no-build Winton.Extensions.Threading.Actor\Winton.Extensions.Threading.Actor.csproj --configuration Release }
+exec { & dotnet test --no-build --no-restore --configuration Release Winton.Extensions.Threading.Actor.Tests.Unit\Winton.Extensions.Threading.Actor.Tests.Unit.csproj }
+exec { & dotnet pack --no-build --no-restore Winton.Extensions.Threading.Actor\Winton.Extensions.Threading.Actor.csproj --configuration Release }

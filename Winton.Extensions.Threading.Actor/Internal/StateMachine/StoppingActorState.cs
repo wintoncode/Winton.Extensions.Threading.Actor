@@ -31,36 +31,47 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
             Context.StartCompletionSource.TrySetResult(true);
 
-            var finalWork =
-                (Action)(() =>
+            Action finalWork =
+                () =>
+                {
+                    try
+                    {
+                        Context.StopWork.CancellationToken.ThrowIfCancellationRequested();
+
+                        if (runStopWork)
+                        {
+                            Context.StopWork.SyncWork();
+                        }
+                    }
+                    finally
+                    {
+                        Context.TerminateTaskScheduler();
+                    }
+                };
+            var finalTask = Context.ActorTaskFactory.Create(finalWork, CancellationToken.None, Context.StopWork.TaskCreationOptions);
+
+            Task.Run(async () =>
+                     {
+                         try
                          {
-                             try
-                             {
-                                 Context.StopWork.CancellationToken.ThrowIfCancellationRequested();
+                             await finalTask;
+                             Context.StopCompletionSource.SetResult(true);
+                         }
+                         catch (OperationCanceledException)
+                         {
+                             Context.StopCompletionSource.SetCanceled();
+                         }
+                         catch (Exception exception)
+                         {
+                             Context.StopCompletionSource.SetException(exception);
+                         }
+                         finally
+                         {
+                             Context.SetState<StoppedActorState>();
+                         }
+                     });
 
-                                 if (runStopWork)
-                                 {
-                                     Context.StopWork.SyncWork();
-                                 }
-
-                                 Context.StopCompletionSource.SetResult(true);
-                             }
-                             catch (OperationCanceledException)
-                             {
-                                 Context.StopCompletionSource.SetCanceled();
-                             }
-                             catch (Exception exception)
-                             {
-                                 Context.StopCompletionSource.SetException(exception);
-                             }
-                             finally
-                             {
-                                 Context.TerminateTaskScheduler();
-                                 Context.SetState<StoppedActorState>();
-                             }
-                         });
-
-            Context.StartTask(Context.ActorTaskFactory.Create(finalWork, CancellationToken.None, Context.StopWork.TaskCreationOptions));
+            Context.StartTask(finalTask);
 
             foreach (var task in Context.InitialWorkQueue.Concat(Context.InitialWorkToBeCancelledQueue))
             {

@@ -20,10 +20,6 @@ echo "Cleaning ..."
 dotnet clean
 echo
 
-echo "Restoring ..."
-dotnet restore
-echo
-
 echo "Building ..."
 dotnet build ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --configuration Release --framework netstandard1.3
 echo
@@ -34,5 +30,5 @@ echo
 
 if [ "${TRAVIS:-}" != "true" ]; then
     echo "Packing ..."
-    dotnet pack ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --no-build --configuration Release
+    dotnet pack ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --no-build --no-restore --configuration Release
 fi
