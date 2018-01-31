@@ -1,5 +1,3 @@
-using System;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
@@ -22,44 +20,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
 
         protected override void StopImpl()
         {
-            var finalWork =
-                (Action)(() =>
-                         {
-                             try
-                             {
-                                 Context.StopWork.CancellationToken.ThrowIfCancellationRequested();
-                                 Context.StopWork.SyncWork();
-                             }
-                             finally
-                             {
-                                 Context.TerminateTaskScheduler();
-                             }
-                         });
-
-            var finalTask = Context.ActorTaskFactory.Create(finalWork, CancellationToken.None, Context.StopWork.TaskCreationOptions);
-
-            Task.Run(async () =>
-                     {
-                         try
-                         {
-                             await finalTask;
-                             Context.StopCompletionSource.SetResult(true);
-                         }
-                         catch (Exception exception)
-                         {
-                             if (exception is TaskCanceledException)
-                             {
-                                 Context.StopCompletionSource.SetCanceled();
-                             }
-                             else
-                             {
-                                 Context.StopCompletionSource.SetException(exception);
-                             }
-                         }
-                     });
-
-            Context.StartTask(finalTask);
-            Context.SetState<StoppedActorState>();
+            Context.SetState<StoppingActorState>();
         }
 
         protected override void EnterImpl()

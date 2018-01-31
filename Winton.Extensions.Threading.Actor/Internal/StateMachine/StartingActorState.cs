@@ -54,7 +54,7 @@ namespace Winton.Extensions.Threading.Actor.Internal.StateMachine
                                  Context.StartCompletionSource.SetException(exception);
                              }
 
-                             Context.SetState<StoppedActorState>();
+                             Context.SetState<StoppingActorState>();
                          }
                      });
         }
