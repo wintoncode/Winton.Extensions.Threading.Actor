@@ -4,37 +4,30 @@ using System.Threading.Tasks;
 
 namespace Winton.Extensions.Threading.Actor.Internal
 {
-    internal sealed class ActorTaskFactory : IActorTaskFactory
+    internal sealed class ActorTaskFactory
     {
-        public Task FromException(Exception exception)
+        private readonly ActorTaskScheduler _scheduler;
+
+        public ActorTaskFactory(ActorTaskScheduler taskScheduler) => _scheduler = taskScheduler;
+
+        public Task StartNew(Action action, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, ActorTaskTraits traits = ActorTaskTraits.None)
         {
-#if NET451
-            var taskCompletionSource = new TaskCompletionSource<object>();
-            taskCompletionSource.SetException(exception);
-            return taskCompletionSource.Task;
-#else
-            return Task.FromException(exception);
-#endif
+            var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            ActorTask.CurrentActorTaskTraits = traits;
+            ActorTask.CurrentCanceller = cancellationTokenSource;
+
+            return Task.Factory.StartNew(action, cancellationTokenSource.Token, taskCreationOptions | TaskCreationOptions.HideScheduler, _scheduler);
         }
 
-        public Task FromCompleted()
+        public Task<T> StartNew<T>(Func<T> function, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, ActorTaskTraits traits = ActorTaskTraits.None)
         {
-            return Task.FromResult(true);
-        }
+            var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        public Task Create(Action<object> action, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, object state)
-        {
-            return new Task(action, state, cancellationToken, taskCreationOptions);
-        }
+            ActorTask.CurrentActorTaskTraits = traits;
+            ActorTask.CurrentCanceller = cancellationTokenSource;
 
-        public Task<T> Create<T>(Func<object, T> function, CancellationToken cancellationToken, TaskCreationOptions taskCreationOptions, object state)
-        {
-            return new Task<T>(function, state, cancellationToken, taskCreationOptions);
-        }
-
-        public Task CreateDelay(TimeSpan delay, CancellationToken cancellationToken)
-        {
-            return Task.Delay(delay, cancellationToken);
+            return Task.Factory.StartNew(function, cancellationTokenSource.Token, taskCreationOptions | TaskCreationOptions.HideScheduler, _scheduler);
         }
     }
 }

@@ -10,34 +10,36 @@ namespace Winton.Extensions.Threading.Actor.Internal
         [ThreadStatic]
         private static ActorTaskScheduler _currentActorScheduler;
 
+        [ThreadStatic]
+        private static bool _shouldPause;
+
+#if NETSTANDARD1_3
+        [ThreadStatic]
+        private static bool _isNonThreadPoolThread;
+#endif
+
         private readonly ActorId _actorId;
         private readonly object _lockObject = new object();
-        private readonly ActorTaskSchedulerStatusManager _statusManager = new ActorTaskSchedulerStatusManager();
         private readonly ActorSynchronizationContext _synchronizationContext;
-        private readonly Queue<Task> _taskQueue = new Queue<Task>();
-        private readonly IWorkItemQueuer _workItemQueuer;
+        private readonly TaskCompletionSource<object> _terminatedTaskCompletionSource = new TaskCompletionSource<object>();
 
+        private ActorTaskSchedulerStatus _status = ActorTaskSchedulerStatus.Paused;
         private ActorSynchronizationContext _resumingSynchronizationContext;
-        private Task _resumingTask;
+        private ActorTask _front;
+        private ActorTask _back;
+        private Thread _thread;
 
-        public ActorTaskScheduler(ActorId actorId, IWorkItemQueuer workItemQueuer, IActorTaskFactory actorTaskFactory)
+        public ActorTaskScheduler(ActorId actorId)
         {
             _actorId = actorId;
-            _workItemQueuer = workItemQueuer;
-            _synchronizationContext = new ActorSynchronizationContext(this, actorTaskFactory, ActorTaskKind.Standard);
+            _synchronizationContext = new ActorSynchronizationContext(new ActorTaskFactory(this), ActorTaskTraits.None);
         }
 
         public static ActorTaskScheduler CurrentActorScheduler => _currentActorScheduler;
 
         public override int MaximumConcurrencyLevel => 1;
 
-        public void Terminate()
-        {
-            lock (_lockObject)
-            {
-                _statusManager.MarkTerminated();
-            }
-        }
+        public Task TerminatedTask => _terminatedTaskCompletionSource.Task;
 
         public ActorPauseAwaitable WhileActorPaused(Task task)
         {
@@ -51,206 +53,261 @@ namespace Winton.Extensions.Threading.Actor.Internal
             return new ActorPauseAwaitable<T>(task);
         }
 
-        private bool HaveActiveThread { get; set; }
-
         private void Pause()
         {
-            lock (_lockObject)
-            {
-                if (_statusManager.State != ActorTaskSchedulerStatus.Terminated)
-                {
-                    _resumingSynchronizationContext = _resumingSynchronizationContext ?? _synchronizationContext.ChangeActorTaskKind(ActorTaskKind.Resumer);
-                    SynchronizationContext.SetSynchronizationContext(_resumingSynchronizationContext);
-                    _statusManager.MarkPaused();
-                }
-            }
+            _resumingSynchronizationContext = _resumingSynchronizationContext ?? _synchronizationContext.ChangeActorTaskKind(ActorTaskTraits.Resuming);
+            SynchronizationContext.SetSynchronizationContext(_resumingSynchronizationContext);
+            _shouldPause = true;
         }
 
         protected override void QueueTask(Task task)
         {
-            var actorTaskContext = task.GetActorTaskContext();
+            QueueTask(new ActorTask(task));
+        }
 
-            lock (_lockObject)
+        private void QueueTask(ActorTask actorTask)
+        {
+            TakeLock();
+
+            switch (_status)
             {
-                switch (_statusManager.State)
-                {
-                    case ActorTaskSchedulerStatus.Terminated:
-                        actorTaskContext.Canceller.Cancel();
-                        break;
-                    case ActorTaskSchedulerStatus.Inactive:
-                        _statusManager.MarkActive();
-                        LaunchNew(task);
-                        break;
-                    case ActorTaskSchedulerStatus.Active:
-                        _taskQueue.Enqueue(task);
-                        break;
-                    case ActorTaskSchedulerStatus.Paused:
-                        if (actorTaskContext.Kind == ActorTaskKind.Resumer)
-                        {
-                            _statusManager.MarkActive();
+                case ActorTaskSchedulerStatus.Terminated:
+                    ReleaseLock();
+                    CancelActorTask(actorTask);
+                    break;
+                case ActorTaskSchedulerStatus.Inactive:
+                    _status = ActorTaskSchedulerStatus.Active;
+                    ReleaseLock();
+                    QueueForExecution(actorTask);
+                    break;
+                case ActorTaskSchedulerStatus.Active:
+                    if ((actorTask.Traits & ActorTaskTraits.Resuming) == ActorTaskTraits.Resuming)
+                    {
+                        actorTask.Next = _front;
+                        _front = actorTask;
 
-                            if (HaveActiveThread)
-                            {
-                                _resumingTask = task;
-                            }
-                            else
-                            {
-                                LaunchNew(task);
-                            }
+                        if (_back is null)
+                        {
+                            _back = _front;
+                        }
+                    }
+                    else
+                    {
+                        if (_front is null)
+                        {
+                            _front = actorTask;
                         }
                         else
                         {
-                            _taskQueue.Enqueue(task);
+                            _back.Next = actorTask;
                         }
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
+
+                        _back = actorTask;
+                    }
+
+                    ReleaseLock();
+
+                    break;
+                case ActorTaskSchedulerStatus.Paused:
+                    if ((actorTask.Traits & ActorTaskTraits.Resuming) == ActorTaskTraits.Resuming)
+                    {
+                        _status = ActorTaskSchedulerStatus.Active;
+                        ReleaseLock();
+                        QueueForExecution(actorTask);
+                    }
+                    else
+                    {
+                        if (_front is null)
+                        {
+                            _front = actorTask;
+                        }
+                        else
+                        {
+                            _back.Next = actorTask;
+                        }
+
+                        _back = actorTask;
+                        ReleaseLock();
+                    }
+
+                    break;
+            }
+        }
+
+        private void TakeLock()
+        {
+            Monitor.Enter(_lockObject);
+        }
+
+        private void ReleaseLock()
+        {
+            Monitor.Exit(_lockObject);
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => false;
+
+        protected override IEnumerable<Task> GetScheduledTasks() => throw new NotSupportedException();
+
+        private void QueueForExecution(ActorTask actorTask)
+        {
+            if ((actorTask.Task.CreationOptions & TaskCreationOptions.LongRunning) == 0)
+            {
+                QueueOnThreadPool(actorTask);
+            }
+            else
+            {
+                QueueForExecutionOffThreadPool(actorTask);
+            }
+        }
+
+        private void QueueForExecutionOffThreadPool(ActorTask actorTask)
+        {
+            _thread?.Join();
+            _thread =
+#if NETSTANDARD1_3
+                new Thread(x =>
+                           {
+                               _isNonThreadPoolThread = true;
+                               Execute(x);
+                           })
+#else
+                new Thread(Execute)
+#endif
+                {
+                    IsBackground = true,
+                    Name = "ActorWorker"
+                };
+            _thread.Start(actorTask);
+        }
+
+        private void QueueOnThreadPool(ActorTask actorTask)
+        {
+#if NETSTANDARD1_3
+            ThreadPool.QueueUserWorkItem(Execute, actorTask);
+#else
+            ThreadPool.UnsafeQueueUserWorkItem(Execute, actorTask);
+#endif
+        }
+
+        private void Execute(object state)
+        {
+            var previousSynchronizationContext = PrepareThreadForExecute();
+            
+            var actorTask = (ActorTask)state;
+            var task = actorTask.Task;
+
+            var isTerminalTask = (actorTask.Traits & ActorTaskTraits.Terminal) != 0;
+
+            TryExecuteTask(task);
+
+            actorTask.CleanUpPostExecute();
+
+            CleanUpThreadAfterExecute(previousSynchronizationContext);
+
+            var shouldTerminate = isTerminalTask || (actorTask.Traits & ActorTaskTraits.Critical) != 0 && task.Status != TaskStatus.RanToCompletion;
+
+            TakeLock();
+
+            if (shouldTerminate)
+            {
+                _status = ActorTaskSchedulerStatus.Terminated;
+                ReleaseLock();
+                TerminationCleanUp(isTerminalTask ? task : null);
+            }
+            else if (_shouldPause && (_front is null || (_front.Traits & ActorTaskTraits.Resuming) == 0))
+            {
+                _status = ActorTaskSchedulerStatus.Paused;
+                ReleaseLock();
+            }
+            else
+            {
+                var nextTask = _front;
+
+                if (nextTask is null)
+                {
+                    _status = ActorTaskSchedulerStatus.Inactive;
+                    ReleaseLock();
+                }
+                else
+                {
+                    _front = _front.Next;
+
+                    if (_front is null)
+                    {
+                        _back = null;
+                    }
+
+                    ReleaseLock();
+
+#if NETSTANDARD1_3
+                    if (_isNonThreadPoolThread)
+#else
+                    if (!Thread.CurrentThread.IsThreadPoolThread)
+#endif
+                    {
+                        Execute(nextTask);
+                    }
+                    else
+                    {
+                        QueueForExecution(nextTask);
+                    }
                 }
             }
         }
 
-        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        private void TerminationCleanUp(Task terminalTask)
         {
-            return false;
-        }
+            var task = _front;
+            _front = null;
+            _back = null;
 
-        protected override IEnumerable<Task> GetScheduledTasks()
-        {
-            throw new NotSupportedException();
-        }
-
-        private enum YieldReason
-        {
-            None = 0,
-            Paused,
-            Terminated,
-            QueueEmpty
-        }
-
-        private void LaunchNew(Task task)
-        {
-            HaveActiveThread = true;
-
-            if (!task.CreationOptions.HasFlag(TaskCreationOptions.LongRunning))
+            while (!(task is null))
             {
-                _workItemQueuer.QueueOnThreadPoolThread(
-                    () =>
+                CancelActorTask(task);
+                task = task.Next;
+            }
+
+            Task.Run(
+                () =>
+                {
+                    _thread?.Join();
+
+                    switch (terminalTask?.Status ?? TaskStatus.RanToCompletion)
                     {
-                        PrepareForExecute();
-
-                        TryExecuteTask(task);
-
-                        CleanUpAfterExecute();
-
-                        lock (_lockObject)
-                        {
-                            HaveActiveThread = false;
-
-                            switch (CheckForReasonToYield())
-                            {
-                                case YieldReason.Paused:
-                                    break;
-                                case YieldReason.Terminated:
-                                    ClearTaskQueue();
-                                    break;
-                                case YieldReason.QueueEmpty:
-                                    _statusManager.MarkInactive();
-                                    break;
-                                case YieldReason.None:
-                                    LaunchNew(GetNextTask());
-                                    break;
-                            }
-                        }
-                    });
-            }
-            else
-            {
-                _workItemQueuer.QueueOnNonThreadPoolThread(
-                    () =>
-                    {
-                        var continueExecuting = true;
-                        PrepareForExecute();
-
-                        while (continueExecuting)
-                        {
-                            TryExecuteTask(task);
-
-                            lock (_lockObject)
-                            {
-                                continueExecuting = false;
-
-                                switch (CheckForReasonToYield())
-                                {
-                                    case YieldReason.Paused:
-                                        break;
-                                    case YieldReason.Terminated:
-                                        ClearTaskQueue();
-                                        break;
-                                    case YieldReason.QueueEmpty:
-                                        _statusManager.MarkInactive();
-                                        break;
-                                    case YieldReason.None:
-                                        task = GetNextTask();
-                                        continueExecuting = true;
-                                        break;
-                                }
-
-                                HaveActiveThread = continueExecuting;
-                            }
-                        }
-
-                        CleanUpAfterExecute();
-                    });
-            }
+                        case TaskStatus.Faulted:
+                            _terminatedTaskCompletionSource.SetException(terminalTask.Exception.InnerExceptions);
+                            break;
+                        case TaskStatus.Canceled:
+                            _terminatedTaskCompletionSource.SetCanceled();
+                            break;
+                        default:
+                            _terminatedTaskCompletionSource.SetResult(null);
+                            break;
+                    }
+                });
         }
 
-        private Task GetNextTask()
+        private void CancelActorTask(ActorTask task)
         {
-            var nextTask = _resumingTask ?? _taskQueue.Dequeue();
-            _resumingTask = null;
-            return nextTask;
+            task.Cancel();
+            TryExecuteTask(task.Task);
         }
 
-        private void ClearTaskQueue()
+        private SynchronizationContext PrepareThreadForExecute()
         {
-            while (_taskQueue.Count > 0)
-            {
-                _taskQueue.Dequeue().Cancel();
-            }
-        }
-
-        private void PrepareForExecute()
-        {
+            _shouldPause = false;
             _currentActorScheduler = this;
+            var previous = SynchronizationContext.Current;
             SynchronizationContext.SetSynchronizationContext(_synchronizationContext);
             Actor.CurrentId = _actorId;
+            return previous;
         }
 
-        private void CleanUpAfterExecute()
+        private void CleanUpThreadAfterExecute(SynchronizationContext previousSynchronizationContext)
         {
             _currentActorScheduler = null;
-            SynchronizationContext.SetSynchronizationContext(null);
+            SynchronizationContext.SetSynchronizationContext(previousSynchronizationContext);
             Actor.CurrentId = ActorId.None;
-        }
-
-        private YieldReason CheckForReasonToYield()
-        {
-            if (_statusManager.State == ActorTaskSchedulerStatus.Terminated)
-            {
-                return YieldReason.Terminated;
-            }
-
-            if (_statusManager.State == ActorTaskSchedulerStatus.Paused)
-            {
-                return YieldReason.Paused;
-            }
-
-            if (_resumingTask == null && _taskQueue.Count == 0)
-            {
-                return YieldReason.QueueEmpty;
-            }
-
-            return YieldReason.None;
         }
     }
 }

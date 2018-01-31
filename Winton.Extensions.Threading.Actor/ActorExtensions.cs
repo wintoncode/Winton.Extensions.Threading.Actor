@@ -30,10 +30,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">Actor</param>
         /// <param name="work">Work to do.</param>
         /// <returns>Actor</returns>
-        public static IActor WithStartWork(this IActor self, Action work)
-        {
-            return self.WithStartWork(new ActorStartWork(work));
-        }
+        public static IActor WithStartWork(this IActor self, Action work) => self.WithStartWork(new ActorStartWork(work));
 
         /// <summary>
         /// Specify work for actor start-up.
@@ -41,10 +38,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">Actor</param>
         /// <param name="work">Async work to do.</param>
         /// <returns>Actor</returns>
-        public static IActor WithStartWork(this IActor self, Func<Task> work)
-        {
-            return self.WithStartWork(new ActorStartWork(work));
-        }
+        public static IActor WithStartWork(this IActor self, Func<Task> work) => self.WithStartWork(new ActorStartWork(work));
 
         /// <summary>
         /// Specify work for actor start-up.
@@ -58,10 +52,7 @@ namespace Winton.Extensions.Threading.Actor
             return self;
         }
 
-        public static IActor WithStopWork(this IActor self, Action work)
-        {
-            return self.WithStopWork(new ActorStopWork(work));
-        }
+        public static IActor WithStopWork(this IActor self, Action work) => self.WithStopWork(new ActorStopWork(work));
 
         /// <summary>
         /// Enqueue a procedure.
@@ -69,10 +60,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">The actor.</param>
         /// <param name="work">The work.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Action work)
-        {
-            return self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
-        }
+        public static Task Enqueue(this IActor self, Action work) => self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue a function.
@@ -80,10 +68,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">The actor.</param>
         /// <param name="work">The work.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<T> work)
-        {
-            return self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<T> work) => self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue an async procedure.
@@ -91,10 +76,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">The actor.</param>
         /// <param name="work">The work.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Func<Task> work)
-        {
-            return self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
-        }
+        public static Task Enqueue(this IActor self, Func<Task> work) => self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue an async function.
@@ -102,10 +84,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">The actor.</param>
         /// <param name="work">The work.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work)
-        {
-            return self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work) => self.Enqueue(work, CancellationToken.None, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue a procedure with special options.
@@ -114,10 +93,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="options">Enqueue options.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Action work, ActorEnqueueOptions options)
-        {
-            return self.Enqueue(work, CancellationToken.None, options);
-        }
+        public static Task Enqueue(this IActor self, Action work, ActorEnqueueOptions options) => self.Enqueue(work, CancellationToken.None, options);
 
         /// <summary>
         /// Enqueue a function with special options.
@@ -126,10 +102,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="options">Enqueue options.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<T> work, ActorEnqueueOptions options)
-        {
-            return self.Enqueue(work, CancellationToken.None, options);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<T> work, ActorEnqueueOptions options) => self.Enqueue(work, CancellationToken.None, options);
 
         /// <summary>
         /// Enqueue an async procedure with special options.
@@ -138,10 +111,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="options">Enqueue options.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Func<Task> work, ActorEnqueueOptions options)
-        {
-            return self.Enqueue(work, CancellationToken.None, options);
-        }
+        public static Task Enqueue(this IActor self, Func<Task> work, ActorEnqueueOptions options) => self.Enqueue(work, CancellationToken.None, options);
 
         /// <summary>
         /// Enqueue an async function with special options.
@@ -150,10 +120,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="options">Enqueue options.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work, ActorEnqueueOptions options)
-        {
-            return self.Enqueue(work, CancellationToken.None, options);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work, ActorEnqueueOptions options) => self.Enqueue(work, CancellationToken.None, options);
 
         /// <summary>
         /// Enqueue a cancellable procedure.
@@ -162,10 +129,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Action work, CancellationToken cancellationToken)
-        {
-            return self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
-        }
+        public static Task Enqueue(this IActor self, Action work, CancellationToken cancellationToken) => self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue a cancellable function.
@@ -174,10 +138,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<T> work, CancellationToken cancellationToken)
-        {
-            return self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<T> work, CancellationToken cancellationToken) => self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue a cancellable async procedure.
@@ -186,10 +147,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Work completion task.</returns>
-        public static Task Enqueue(this IActor self, Func<Task> work, CancellationToken cancellationToken)
-        {
-            return self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
-        }
+        public static Task Enqueue(this IActor self, Func<Task> work, CancellationToken cancellationToken) => self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Enqueue a cancellable async function.
@@ -198,10 +156,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="work">The work.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Function result task.</returns>
-        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work, CancellationToken cancellationToken)
-        {
-            return self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
-        }
+        public static Task<T> Enqueue<T>(this IActor self, Func<Task<T>> work, CancellationToken cancellationToken) => self.Enqueue(work, cancellationToken, ActorEnqueueOptions.Default);
 
         /// <summary>
         /// Returns a <see cref="CancellationToken"/> that is cancelled when the given actor stops.

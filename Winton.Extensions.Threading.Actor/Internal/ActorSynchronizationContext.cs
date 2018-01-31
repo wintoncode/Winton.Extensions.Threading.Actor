@@ -5,25 +5,17 @@ namespace Winton.Extensions.Threading.Actor.Internal
 {
     internal sealed class ActorSynchronizationContext : SynchronizationContext
     {
-        private readonly ActorTaskScheduler _scheduler;
-        private readonly IActorTaskFactory _actorTaskFactory;
-        private readonly ActorTaskKind _actorTaskKind;
+        private readonly ActorTaskFactory _actorTaskFactory;
+        private readonly ActorTaskTraits _actorTaskTraits;
 
-        public ActorSynchronizationContext(ActorTaskScheduler scheduler, IActorTaskFactory actorTaskFactory, ActorTaskKind actorTaskKind)
+        public ActorSynchronizationContext(ActorTaskFactory actorTaskFactory, ActorTaskTraits actorTaskTraits)
         {
-            _scheduler = scheduler;
             _actorTaskFactory = actorTaskFactory;
-            _actorTaskKind = actorTaskKind;
+            _actorTaskTraits = actorTaskTraits;
         }
 
-        public ActorSynchronizationContext ChangeActorTaskKind(ActorTaskKind actorTaskKind)
-        {
-            return new ActorSynchronizationContext(_scheduler, _actorTaskFactory, actorTaskKind);
-        }
+        public ActorSynchronizationContext ChangeActorTaskKind(ActorTaskTraits actorTaskTraits) => new ActorSynchronizationContext(_actorTaskFactory, actorTaskTraits);
 
-        public override void Post(SendOrPostCallback callback, object state)
-        {
-            _actorTaskFactory.Create(() => callback(state), CancellationToken.None, TaskCreationOptions.HideScheduler, _actorTaskKind).Start(_scheduler);
-        }
+        public override void Post(SendOrPostCallback callback, object state) => _actorTaskFactory.StartNew(() => callback(state), CancellationToken.None, TaskCreationOptions.None, _actorTaskTraits);
     }
 }

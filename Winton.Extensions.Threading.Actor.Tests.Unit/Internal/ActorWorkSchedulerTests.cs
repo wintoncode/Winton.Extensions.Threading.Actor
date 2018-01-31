@@ -4,11 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Moq;
 using FluentAssertions;
-using Winton.Extensions.Threading.Actor.Internal;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
 
@@ -24,20 +21,18 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
         private readonly IActor _actor;
         private readonly IActorWorkScheduler _scheduler;
-        private readonly IActorTaskFactory _actorTaskFactory;
 
         public ActorWorkSchedulerTests()
         {
-            _actorTaskFactory = SetUpTaskFactory();
-            _actor = new Actor(_actorTaskFactory);
+            _actor = new Actor();
             _actor.Start();
-            _scheduler = new ActorWorkScheduler(_actor, _actorTaskFactory);
+            _scheduler = _actor.CreateWorkScheduler();
         }
 
         public void Dispose()
         {
+            _actor.Stop().Wait();
             _scheduler.CancelCurrent();
-            _actor.Stop();
         }
 
         [Theory]
@@ -52,31 +47,30 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var times = new List<DateTime>();
             var sampleSize = 5;
 
-            Action adder =
-                () =>
+            void Adder()
+            {
+                if (times.Count < sampleSize)
                 {
-                    if (times.Count < sampleSize)
-                    {
-                        times.Add(DateTime.UtcNow);
-                    }
-                    
-                    if (times.Count == sampleSize)
-                    {
-                        // Block here so that we can assess something that's not moving
-                        barrier.Task.Wait();
-                    }
-                };
+                    times.Add(DateTime.UtcNow);
+                }
+
+                if (times.Count == sampleSize)
+                {
+                    // Block here so that we can assess something that's not moving
+                    barrier.Task.Wait();
+                }
+            }
 
             switch (workType)
             {
                 case WorkType.Sync:
-                    _scheduler.Schedule(adder, expectedInterval, actorScheduleOptions);
+                    _scheduler.Schedule((Action)Adder, expectedInterval, actorScheduleOptions);
                     break;
                 case WorkType.Async:
                     _scheduler.Schedule(async () =>
                                         {
                                             await Task.Yield();
-                                            adder();
+                                            Adder();
                                         },
                                         expectedInterval,
                                         actorScheduleOptions);
@@ -92,35 +86,53 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             // Use 75ms instead of 100ms to give it a bit of latitude: mainly we just want to make sure there is some delaying going on.
             actualIntervals.Should().OnlyContain(x => x >= TimeSpan.FromMilliseconds(75));
 
-            var expectedNumberOfDelays = sampleSize - (actorScheduleOptions.HasFlag(ActorScheduleOptions.NoInitialDelay) ? 1 : 0);
-
-            Expect.That(() => Mock.Get(_actorTaskFactory)
-                                  .Verify(x => x.CreateDelay(expectedInterval, It.IsAny<CancellationToken>()), Times.Exactly(expectedNumberOfDelays)))
-                  .ShouldNotThrow();
-
             barrier.SetResult(true);
         }
 
         [Fact]
         public void ShouldBeAbleToSpecifyThatSyncWorkIsLongRunning()
         {
-            _scheduler.Schedule(() => { }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-            Within.FiveSeconds(
-                () => Expect.That(
-                                () => Mock.Get(_actorTaskFactory)
-                                          .Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.Is<TaskCreationOptions>(o => o.HasFlag(TaskCreationOptions.LongRunning)), It.IsAny<object>()), Times.Once))
-                            .ShouldNotThrow());
+            var taskCompletionSource = new TaskCompletionSource<object>();
+
+            _scheduler.Schedule(
+                () =>
+                {
+                    try
+                    {
+                        ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
+                        taskCompletionSource.TrySetResult(null);
+                    }
+                    catch (Exception exception)
+                    {
+                        taskCompletionSource.TrySetException(exception);
+                    }
+                }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
+
+            taskCompletionSource.Awaiting(async x => await x.Task).ShouldNotThrow();
         }
 
         [Fact]
         public void ShouldBeAbleToSpecifyThatAsyncWorkIsLongRunning()
         {
-            _scheduler.Schedule(async () => { await Task.Yield(); }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
-            Within.FiveSeconds(
-                () => Expect.That(
-                                () => Mock.Get(_actorTaskFactory)
-                                          .Verify(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.Is<TaskCreationOptions>(o => o.HasFlag(TaskCreationOptions.LongRunning)), It.IsAny<object>()), Times.Once))
-                            .ShouldNotThrow());
+            var taskCompletionSource = new TaskCompletionSource<object>();
+
+            _scheduler.Schedule(
+                async () =>
+                {
+                    await Task.Yield();
+
+                    try
+                    {
+                        ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
+                        taskCompletionSource.TrySetResult(null);
+                    }
+                    catch (Exception exception)
+                    {
+                        taskCompletionSource.TrySetException(exception);
+                    }
+                }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
+
+            taskCompletionSource.Awaiting(async x => await x.Task).ShouldNotThrow();
         }
 
         [Theory]
@@ -172,31 +184,30 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var firstTwoAddedPromise = new TaskCompletionSource<bool>();
             var gotAOneAfterATwoPromise = new TaskCompletionSource<bool>();
 
-            Action<string> adder =
-                x =>
-                {
-                    output.Add(x);
+            void Adder(string x)
+            {
+                output.Add(x);
 
-                    if (x == "two")
-                    {
-                        firstTwoAddedPromise.TrySetResult(true);
-                    }
-                    else if (firstTwoAddedPromise.Task.IsCompleted && x == "one")
-                    {
-                        gotAOneAfterATwoPromise.TrySetResult(true);
-                    }
-                };
+                if (x == "two")
+                {
+                    firstTwoAddedPromise.TrySetResult(true);
+                }
+                else if (firstTwoAddedPromise.Task.IsCompleted && x == "one")
+                {
+                    gotAOneAfterATwoPromise.TrySetResult(true);
+                }
+            }
 
             switch (workType1)
             {
                 case WorkType.Sync:
-                    task1 = _scheduler.Schedule(() => { adder("one"); }, interval);
+                    task1 = _scheduler.Schedule(() => { Adder("one"); }, interval);
                     break;
                 case WorkType.Async:
                     task1 = _scheduler.Schedule(async () =>
                                                {
-                                                   await Task.Yield();
-                                                   adder("one");
+                                                   await Task.Delay(TimeSpan.FromMilliseconds(10));
+                                                   Adder("one");
                                                }, interval);
                     break;
                 default:
@@ -208,12 +219,12 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (workType2)
             {
                 case WorkType.Sync:
-                    _scheduler.Schedule(() => { adder("two"); }, interval);
+                    _scheduler.Schedule(() => { Adder("two"); }, interval);
                     break;
                 case WorkType.Async:
                     _scheduler.Schedule(async () =>
                                         {
-                                            adder("two");
+                                            Adder("two");
                                             await Task.Yield();
                                         }, interval);
                     break;
@@ -348,40 +359,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [Fact]
         public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
-            Expect.That(() => _scheduler.Schedule((Func<Task>)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
+            Expect.That(() => _scheduler.Schedule(null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
                   .ShouldThrow<ArgumentNullException>()
                   .And.ParamName.Should().Be("work");
         }
-
-        private static IActorTaskFactory SetUpTaskFactory()
-        {
-            var realTaskFactory = new ActorTaskFactory();
-            var taskFactory = Mock.Of<IActorTaskFactory>();
-
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Action<object>, CancellationToken, TaskCreationOptions, object>((action, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(action, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, int>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task<string>>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.FromCompleted())
-                .Returns(realTaskFactory.FromCompleted);
-            Mock.Get(taskFactory)
-                .Setup(x => x.FromException(It.IsAny<Exception>()))
-                .Returns<Exception>(realTaskFactory.FromException);
-            Mock.Get(taskFactory)
-                .Setup(x => x.CreateDelay(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
-                .Returns<TimeSpan, CancellationToken>(Task.Delay);
-
-            return taskFactory;
-        }
-
     }
 }

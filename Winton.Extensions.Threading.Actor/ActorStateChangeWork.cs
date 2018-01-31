@@ -15,14 +15,12 @@ namespace Winton.Extensions.Threading.Actor
     {
         internal ActorStateChangeWork(Action syncWork, Func<Task> asyncWork, CancellationToken cancellationToken, WorkType workType)
         {
-            if (workType == WorkType.Synchronous && syncWork == null)
+            switch (workType)
             {
-                throw new ArgumentNullException(nameof(syncWork));
-            }
-
-            if (workType == WorkType.Asynchronous && asyncWork == null)
-            {
-                throw new ArgumentNullException(nameof(asyncWork));
+                case WorkType.Synchronous when syncWork == null:
+                    throw new ArgumentNullException(nameof(syncWork));
+                case WorkType.Asynchronous when asyncWork == null:
+                    throw new ArgumentNullException(nameof(asyncWork));
             }
 
             if (syncWork != null && asyncWork != null)

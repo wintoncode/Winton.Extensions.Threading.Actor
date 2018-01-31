@@ -6,9 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Moq;
 using FluentAssertions;
-using Winton.Extensions.Threading.Actor.Internal;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
 
@@ -35,29 +33,20 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         private readonly List<IActor> _createdActors = new List<IActor>();
-        private readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(10);
+        private readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(30);
 
         public void Dispose()
         {
-            var closeErrors = new List<Exception>();
-
-            foreach (var actor in _createdActors)
+            if (_createdActors.Any())
             {
                 try
                 {
-                    actor.Stop().Wait(_waitTimeout);
+                    Task.WaitAll(_createdActors.Select(x => x.Stop()).ToArray(), _waitTimeout);
                 }
-                catch (Exception exception)
+                catch (AggregateException exception)
                 {
-                    closeErrors.Add(exception);
+                    Console.WriteLine($"One or more errors occurred whilst stopping the test actor(s):\n{string.Join("\n", exception.InnerExceptions)}");
                 }
-            }
-
-            _createdActors.Clear();
-
-            if (closeErrors.Any())
-            {
-                Console.WriteLine($"One or more errors occurred whilst stopping the test actor(s):\n{string.Join("\n", closeErrors)}");
             }
         }
 
@@ -305,29 +294,38 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Theory]
-        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, TaskCreationOptions.LongRunning)]
-        [InlineData(ActorEnqueueOptions.Default, TaskCreationOptions.None)]
-        public void ShouldScheduleTaskAsLongRunningIfRequested(ActorEnqueueOptions enqueueOptions, TaskCreationOptions expectedTaskCreationOptions)
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning)]
+        [InlineData(ActorEnqueueOptions.Default)]
+        public async Task ShouldScheduleTaskAsLongRunningIfRequested(ActorEnqueueOptions enqueueOptions)
         {
-            expectedTaskCreationOptions |= TaskCreationOptions.HideScheduler;
+            var actor = new Actor();
 
-            var taskFactory = SetUpTaskFactory();
-            var actor = new Actor(taskFactory);
+            await actor.Start();
 
-            actor.Start();
-            actor.Enqueue(() => { }, enqueueOptions);
-            actor.Enqueue(() => 676, enqueueOptions);
-            actor.Enqueue(async () => await Task.Delay(10000), enqueueOptions);
-            actor.Enqueue(async () =>
-                          {
-                              await Task.Delay(10000);
-                              return "moose";
-                          }, enqueueOptions);
+            actor.Awaiting(async x => await x.Enqueue(() => ValidateActorThread(enqueueOptions), enqueueOptions)).ShouldNotThrow();
+            actor.Awaiting(
+                async x => await x.Enqueue(
+                               () =>
+                               {
+                                   ValidateActorThread(enqueueOptions);
+                                   return 676;
+                               }, enqueueOptions)).ShouldNotThrow();
+            actor.Awaiting(
+                async x => await x.Enqueue(
+                               async () =>
+                               {
+                                   await Task.Yield();
+                                   ValidateActorThread(enqueueOptions);
+                               }, enqueueOptions)).ShouldNotThrow();
+            actor.Awaiting(
+                async x => await x.Enqueue(
+                               async () =>
+                               {
+                                   await Task.Yield();
+                                   ValidateActorThread(enqueueOptions);
+                                   return "moose";
+                               }, enqueueOptions)).ShouldNotThrow();
 
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
         }
 
         [Fact]
@@ -422,18 +420,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [Fact]
         public async Task ShouldCancelStoppedTokenWhenStopCompleted()
         {
-            var stageOrder = new List<string>();
-            var actor = CreateActor(x =>
-                                    {
-                                        x.StartWork = new ActorStartWork(() => stageOrder.Add("Start"));
-                                        x.StopWork = new ActorStopWork(
-                                            () =>
-                                            {
-                                                Thread.Sleep(TimeSpan.FromMilliseconds(250));
-                                                stageOrder.Add("Stop");
-                                            });
-                                    },
-                                    ActorCreateOptions.None);
+            var actor = CreateActor(x => { }, ActorCreateOptions.None);
 
             await actor.Start();
 
@@ -455,13 +442,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [InlineData(ResumeTestCase.AwaitOnSecondActor, StopWorkOutcome.Faults)]
         public void ShouldNotBeAbleToResumeWorkAfterStop(ResumeTestCase resumeTestCase, StopWorkOutcome stopWorkOutcome)
         {
-            var actor1 = CreateActor(x => x.StopWork = new ActorStopWork(() =>
-                                                                         {
-                                                                             if (stopWorkOutcome == StopWorkOutcome.Faults)
-                                                                             {
-                                                                                 throw new InvalidOperationException("Never meant to be");
-                                                                             }
-                                                                         }));
+            var actor1 = CreateActor(
+                x => x.StopWork = new ActorStopWork(
+                         () =>
+                         {
+                             if (stopWorkOutcome == StopWorkOutcome.Faults)
+                             {
+                                 throw new InvalidOperationException("Never meant to be");
+                             }
+                         }));
             var actor2 = CreateActor();
             var pretrigger = new TaskCompletionSource<bool>();
             var trigger = new TaskCompletionSource<bool>();
@@ -475,43 +464,42 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     "PostTriggerWait"
                 };
 
-            Func<int> offActorWork =
-                () =>
-                   {
-                       stages.Add("PreTriggerWait");
-                       pretrigger.SetResult(true);
-                       ThrowIfWaitTimesOut(trigger.Task);
-                       stages.Add("PostTriggerWait");
-                       return 345;
-                   };
+            int OffActorWork()
+            {
+                stages.Add("PreTriggerWait");
+                pretrigger.SetResult(true);
+                ThrowIfWaitTimesOut(trigger.Task);
+                stages.Add("PostTriggerWait");
+                return 345;
+            }
 
             switch (resumeTestCase)
             {
                 case ResumeTestCase.AwaitOnSecondActor:
-                    suspendWork = () => actor2.Enqueue(offActorWork);
+                    suspendWork = () => actor2.Enqueue((Func<int>)OffActorWork);
                     break;
                 case ResumeTestCase.AwaitOnTaskFactoryScheduledTask:
-                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(offActorWork);
+                    suspendWork = () => new TaskFactory(TaskScheduler.Default).StartNew(OffActorWork);
                     break;
                 default:
                     throw new Exception($"Unhandled test case {resumeTestCase}.");
             }
 
             //var task1 =
-            actor1.Enqueue(async () =>
-                           {
-                               stages.Add("PreSuspend");
-                               var value = await suspendWork();
-                               stages.Add("PostSuspend");
-                               return value * 37;
-                           });
+            actor1.Enqueue(
+                async () =>
+                {
+                    stages.Add("PreSuspend");
+                    var value = await suspendWork();
+                    stages.Add("PostSuspend");
+                    return value * 37;
+                });
 
             pretrigger.Task.AwaitingShouldCompleteIn(_waitTimeout);
             stages.Should().Equal(expectedStageOrder.Take(2));
 
             var stopTask = actor1.Stop();
             MarkAlreadyStopped();
-            trigger.SetResult(true);
 
             switch (stopWorkOutcome)
             {
@@ -525,12 +513,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     throw new Exception($"Unhandled test case {stopWorkOutcome}.");
             }
 
-            Within.OneSecond(() => stages.Should().Equal(expectedStageOrder));
+            trigger.SetResult(true);
 
-            // The below would be nice but has proved intractable to achieve.  It seems the async/await syntatic sugar
-            // fails to pass on the AsyncState from the initial task so that the associated CancellationTokenSource is
-            // not preserved.
-            //AssertCancelled(task1);
+            Within.OneSecond(() => stages.Should().Equal(expectedStageOrder));
+            For.OneSecond(() => stages.Should().Equal(expectedStageOrder));
+
+            // The below would be nice but has proved intractable to achieve.
+            //task1.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+
+            actor2.Stop().Wait();
         }
 
         [Fact]
@@ -654,46 +645,37 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Theory]
-        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, TaskCreationOptions.LongRunning)]
-        [InlineData(ActorEnqueueOptions.Default, TaskCreationOptions.None)]
-        public void ShouldScheduleStartTaskAsLongRunningIfRequested(ActorEnqueueOptions startOptions, TaskCreationOptions expectedTaskCreationOptions)
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning)]
+        [InlineData(ActorEnqueueOptions.Default)]
+        public void ShouldScheduleStartTaskAsLongRunningIfRequested(ActorEnqueueOptions startOptions)
         {
-            expectedTaskCreationOptions |= TaskCreationOptions.HideScheduler;
-
-            var taskFactory = SetUpTaskFactory();
-            var actor = new Actor(taskFactory)
+            var actor = new Actor
                         {
-                            StartWork = new ActorStartWork(() => { })
-                                        {
-                                            Options = startOptions
-                                        }
+                            StartWork = new ActorStartWork(() => ValidateActorThread(startOptions))
+                                            {
+                                                Options = startOptions
+                                            }
                         };
 
-            actor.Start();
-
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
+            actor.Awaiting(async x => await x.Start()).ShouldNotThrow();
         }
 
         [Theory]
-        [InlineData(ActorEnqueueOptions.WorkIsLongRunning, TaskCreationOptions.LongRunning)]
-        [InlineData(ActorEnqueueOptions.Default, TaskCreationOptions.None)]
-        public void ShouldScheduleStopTaskAsLongRunningIfRequested(ActorEnqueueOptions stopOptions, TaskCreationOptions expectedTaskCreationOptions)
+        [InlineData(ActorEnqueueOptions.WorkIsLongRunning)]
+        [InlineData(ActorEnqueueOptions.Default)]
+        public async Task ShouldScheduleStopTaskAsLongRunningIfRequested(ActorEnqueueOptions stopOptions)
         {
-            expectedTaskCreationOptions |= TaskCreationOptions.HideScheduler;
-            var taskFactory = SetUpTaskFactory();
-
-            var actor = new Actor(taskFactory)
+            var actor = new Actor
                         {
-                            StopWork = new ActorStopWork(() => { })
-                                       {
-                                           Options = stopOptions
-                                       }
+                            StopWork = new ActorStopWork(() => ValidateActorThread(stopOptions))
+                                           {
+                                               Options = stopOptions
+                                           }
                         };
 
-            actor.Start();
-            actor.Stop();
+            await actor.Start();
 
-            Expect.That(() => Mock.Get(taskFactory).Verify(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), expectedTaskCreationOptions, It.IsAny<object>()), Times.Once)).ShouldNotThrow();
+            actor.Awaiting(async x => await x.Stop()).ShouldNotThrow();
         }
 
         [Fact]
@@ -964,10 +946,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                 tasks[1] = actor.Enqueue(() => numbers.Add(i + 3), otherOptions);
                 tasks[2] = actor.Enqueue(() => numbers.Add(i + 4), otherOptions);
 
-                foreach (var task in tasks)
-                {
-                    await task;
-                }
+                await Task.WhenAll(tasks);
 
                 await actor.Stop();
 
@@ -1048,9 +1027,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             return CreateActor(_ => { }, options);
         }
 
-        private IActor CreateActor(Action<IActor> setup, ActorCreateOptions options = ActorCreateOptions.Default, IActorTaskFactory actorTaskFactory = null)
+        private IActor CreateActor(Action<IActor> setup, ActorCreateOptions options = ActorCreateOptions.Default)
         {
-            var actor = new Actor(actorTaskFactory);
+            var actor = new Actor();
 
             setup(actor);
 
@@ -1064,7 +1043,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             return actor;
         }
 
-        private void ShouldBeCancelled(Task task)
+        private static void ShouldBeCancelled(Task task)
         {
             Expect.That(async () => await task).ShouldThrow<TaskCanceledException>();
         }
@@ -1082,34 +1061,16 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             }
         }
 
-        private static IActorTaskFactory SetUpTaskFactory()
+        private static void ValidateActorThread(ActorEnqueueOptions enqueueOptions)
         {
-            var realTaskFactory = new ActorTaskFactory();
-            var taskFactory = Mock.Of<IActorTaskFactory>();
-
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Action<object>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Action<object>, CancellationToken, TaskCreationOptions, object>((action, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(action, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, int>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, int>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, Task>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.Create(It.IsAny<Func<object, Task<string>>>(), It.IsAny<CancellationToken>(), It.IsAny<TaskCreationOptions>(), It.IsAny<object>()))
-                .Returns<Func<object, Task<string>>, CancellationToken, TaskCreationOptions, object>((function, cancellationToken, taskCreationOptions, state) => realTaskFactory.Create(function, cancellationToken, taskCreationOptions, state));
-            Mock.Get(taskFactory)
-                .Setup(x => x.FromCompleted())
-                .Returns(realTaskFactory.FromCompleted);
-            Mock.Get(taskFactory)
-                .Setup(x => x.FromException(It.IsAny<Exception>()))
-                .Returns<Exception>(realTaskFactory.FromException);
-            Mock.Get(taskFactory)
-                .Setup(x => x.CreateDelay(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
-                .Returns<TimeSpan, CancellationToken>(Task.Delay);
-
-            return taskFactory;
+            if (enqueueOptions.HasFlag(ActorEnqueueOptions.WorkIsLongRunning))
+            {
+                ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
+            }
+            else
+            {
+                ActorThreadAssertions.CurrentThreadShouldBeThreadPoolThread();
+            }
         }
     }
 }
