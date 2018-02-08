@@ -12,10 +12,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
     {
         private readonly TaskAwaiter _taskAwaiter;
 
-        public ActorPauseAwaitable GetAwaiter()
-        {
-            return this;
-        }
+        public ActorPauseAwaitable GetAwaiter() => this;
 
         internal ActorPauseAwaitable(Task task)
         {
@@ -49,10 +46,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
     {
         private readonly TaskAwaiter<TResult> _taskAwaiter;
 
-        public ActorPauseAwaitable<TResult> GetAwaiter()
-        {
-            return this;
-        }
+        public ActorPauseAwaitable<TResult> GetAwaiter() => this;
 
         internal ActorPauseAwaitable(Task<TResult> task)
         {
@@ -72,9 +66,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
             _taskAwaiter.UnsafeOnCompleted(continuation);
         }
 
-        public TResult GetResult()
-        {
-            return _taskAwaiter.GetResult();
-        }
+        public TResult GetResult() => _taskAwaiter.GetResult();
     }
 }

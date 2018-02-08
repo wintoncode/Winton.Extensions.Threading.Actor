@@ -10,52 +10,31 @@ namespace Winton.Extensions.Threading.Actor
     /// </summary>
     public struct ActorId : IEquatable<ActorId>
     {
-        private ActorId(Guid value)
-        {
-            _value = value;
-        }
+        private ActorId(Guid value) => _value = value;
 
         public static ActorId None { get; } = new ActorId();
 
-        public static ActorId NewId()
-        {
-            return new ActorId(Guid.NewGuid());
-        }
+        public static ActorId NewId() => new ActorId(Guid.NewGuid());
 
-        public bool Equals(ActorId other)
-        {
-            return _value == other._value;
-        }
+        public bool Equals(ActorId other) => _value == other._value;
 
         public override bool Equals(object obj)
         {
-            if (ReferenceEquals(null, obj))
+            if (obj is null)
             {
                 return false;
             }
 
-            return obj is ActorId && Equals((ActorId)obj);
+            return obj is ActorId id && Equals(id);
         }
 
-        public override int GetHashCode()
-        {
-            return _value.GetHashCode();
-        }
+        public override int GetHashCode() => _value.GetHashCode();
 
-        public static bool operator ==(ActorId lhs, ActorId rhs)
-        {
-            return lhs.Equals(rhs);
-        }
+        public static bool operator ==(ActorId lhs, ActorId rhs) => lhs.Equals(rhs);
 
-        public static bool operator !=(ActorId lhs, ActorId rhs)
-        {
-            return !(lhs == rhs);
-        }
+        public static bool operator !=(ActorId lhs, ActorId rhs) => !(lhs == rhs);
 
-        public override string ToString()
-        {
-            return _value.ToString();
-        }
+        public override string ToString() => _value.ToString();
 
         private readonly Guid _value;
     }

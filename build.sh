@@ -22,10 +22,12 @@ echo
 
 echo "Building ..."
 dotnet build ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --configuration Release --framework netstandard1.3
+dotnet build ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj --configuration Release --framework netstandard2.0
 echo
 
 echo "Testing ..."
-dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --configuration Release --framework netcoreapp1.0
+dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --configuration Release --framework netcoreapp2.0
+dotnet test ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj --configuration Release --framework netcoreapp1.1
 echo
 
 if [ "${TRAVIS:-}" != "true" ]; then

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Copyright>Copyright © 2017 Winton</Copyright>
     <Authors>Jos Hickson</Authors>
-    <TargetFrameworks>net451;netstandard1.3</TargetFrameworks>
+    <TargetFrameworks>net451;netstandard1.3;netstandard2.0</TargetFrameworks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyName>Winton.Extensions.Threading.Actor.Tests.Utilities</AssemblyName>
@@ -29,14 +29,8 @@
     <DebugType>full</DebugType>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Folder Include="Properties\" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.3'">
-    <PackageReference Include="System.Threading.Thread">
-      <Version>4.3.0</Version>
-    </PackageReference>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net451'">
+    <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
   </ItemGroup>
 
 </Project>

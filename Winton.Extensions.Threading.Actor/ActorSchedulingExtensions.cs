@@ -18,10 +18,7 @@ namespace Winton.Extensions.Threading.Actor
         /// </summary>
         /// <param name="actor">The actor to target.</param>
         /// <returns>A work scheduler instance.</returns>
-        public static IActorWorkScheduler CreateWorkScheduler(this IActor actor)
-        {
-            return new ActorWorkScheduler(actor, new ActorTaskFactory());
-        }
+        public static IActorWorkScheduler CreateWorkScheduler(this IActor actor) => new ActorWorkScheduler(actor);
 
         /// <summary>
         /// A wrapper round IActorWorkScheduler.Schedule() that reschedules work after an unxexpected error has occurred in that work.
