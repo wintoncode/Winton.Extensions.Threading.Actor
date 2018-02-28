@@ -7,15 +7,10 @@ namespace Winton.Extensions.Threading.Actor.Internal
     internal sealed class ActorWorkScheduler : IActorWorkScheduler
     {
         private readonly IActor _actor;
-        private readonly IActorTaskFactory _actorTaskFactory;
 
         private CancellationTokenSource _cancellationTokenSource = null;
 
-        public ActorWorkScheduler(IActor actor, IActorTaskFactory actorTaskFactory)
-        {
-            _actor = actor;
-            _actorTaskFactory = actorTaskFactory;
-        }
+        public ActorWorkScheduler(IActor actor) => _actor = actor;
 
         public Task Schedule(Action work, TimeSpan interval, ActorScheduleOptions options)
         {
@@ -72,23 +67,18 @@ namespace Winton.Extensions.Threading.Actor.Internal
         {
             if (!options.HasFlag(ActorScheduleOptions.NoInitialDelay))
             {
-                await GetDelay(interval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
             }
 
             await enqueuer().ConfigureAwait(false);
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                await GetDelay(interval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
                 await enqueuer().ConfigureAwait(false);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-        }
-
-        private Task GetDelay(TimeSpan interval, CancellationToken cancellationToken)
-        {
-            return _actorTaskFactory.CreateDelay(interval, cancellationToken);
         }
 
         private static ActorEnqueueOptions GetEnqueueOptions(ActorScheduleOptions actorScheduleOptions)

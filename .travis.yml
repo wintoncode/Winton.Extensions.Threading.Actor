@@ -20,7 +20,7 @@ addons:
       key_url: 'https://packages.microsoft.com/keys/microsoft.asc'
     packages:
     - dotnet-hostfxr-1.0.1
-    - dotnet-sharedframework-microsoft.netcore.app-1.0.9
+    - dotnet-sharedframework-microsoft.netcore.app-1.1.6
   
 script:
   - (git fetch --unshallow 2>/dev/null || echo "Already full repo.")

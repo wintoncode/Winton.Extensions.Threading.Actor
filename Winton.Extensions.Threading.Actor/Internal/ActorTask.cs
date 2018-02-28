@@ -1,24 +1,65 @@
-using System;
+﻿using System;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Winton.Extensions.Threading.Actor.Internal
 {
-    internal static class ActorTask
+    internal sealed class ActorTask
     {
-        public static bool IsActorTask(this Task self)
+        [ThreadStatic]
+        private static CancellationTokenSource _currentCanceller;
+
+        [ThreadStatic]
+        private static ActorTaskTraits _currentActorTaskTraits;
+
+        private CancellationTokenSource _canceller;
+
+        public ActorTask(Task task)
         {
-            return self.AsyncState is ActorTaskContext;
+            Debug.Assert(_currentCanceller != null);
+
+            Task = task;
+            Traits = _currentActorTaskTraits;
+            _canceller = _currentCanceller;
+
+            _currentCanceller = null;
+            _currentActorTaskTraits = ActorTaskTraits.None;
         }
 
-        public static ActorTaskContext GetActorTaskContext(this Task self)
+        public static CancellationTokenSource CurrentCanceller
         {
-            return self.AsyncState as ActorTaskContext ?? throw new InvalidOperationException("Task is not an actor task.");
+            set => _currentCanceller = value;
         }
 
-        public static void Cancel(this Task self)
+        public static ActorTaskTraits CurrentActorTaskTraits
         {
-            var context = self.AsyncState as ActorTaskContext;
-            context?.Canceller.Cancel();
+            set => _currentActorTaskTraits = value;
+        }
+
+        public ActorTaskTraits Traits { get; }
+
+        public Task Task { get; }
+
+        public ActorTask Next { get; set; }
+
+        public void Cancel()
+        {
+            if (!(_canceller is null))
+            {
+                _canceller.Cancel();
+                _canceller.Dispose();
+                _canceller = null;
+            }
+        }
+
+        public void CleanUpPostExecute()
+        {
+            if (!(_canceller is null))
+            {
+                _canceller.Dispose();
+                _canceller = null;
+            }
         }
     }
 }
