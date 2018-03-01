@@ -13,11 +13,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
         [ThreadStatic]
         private static bool _shouldPause;
 
-#if NETSTANDARD1_3
-        [ThreadStatic]
-        private static bool _isNonThreadPoolThread;
-#endif
-
         private readonly ActorId _actorId;
         private readonly object _lockObject = new object();
         private readonly ActorSynchronizationContext _synchronizationContext;
@@ -164,15 +159,7 @@ namespace Winton.Extensions.Threading.Actor.Internal
         {
             _thread?.Join();
             _thread =
-#if NETSTANDARD1_3
-                new Thread(x =>
-                           {
-                               _isNonThreadPoolThread = true;
-                               Execute(x);
-                           })
-#else
                 new Thread(Execute)
-#endif
                 {
                     IsBackground = true,
                     Name = "ActorWorker"
@@ -180,78 +167,78 @@ namespace Winton.Extensions.Threading.Actor.Internal
             _thread.Start(actorTask);
         }
 
-        private void QueueOnThreadPool(ActorTask actorTask)
-        {
+        private void QueueOnThreadPool(ActorTask actorTask) =>
 #if NETSTANDARD1_3
             ThreadPool.QueueUserWorkItem(Execute, actorTask);
 #else
             ThreadPool.UnsafeQueueUserWorkItem(Execute, actorTask);
 #endif
-        }
 
         private void Execute(object state)
         {
             var previousSynchronizationContext = PrepareThreadForExecute();
-            
             var actorTask = (ActorTask)state;
-            var task = actorTask.Task;
+            var onLongRunningThread = (actorTask.Task.CreationOptions & TaskCreationOptions.LongRunning) == TaskCreationOptions.LongRunning;
+            var switchThreadType = false;
 
-            var isTerminalTask = (actorTask.Traits & ActorTaskTraits.Terminal) != 0;
-
-            TryExecuteTask(task);
-
-            actorTask.CleanUpPostExecute();
-
-            CleanUpThreadAfterExecute(previousSynchronizationContext);
-
-            var shouldTerminate = isTerminalTask || (actorTask.Traits & ActorTaskTraits.Critical) != 0 && task.Status != TaskStatus.RanToCompletion;
-
-            TakeLock();
-
-            if (shouldTerminate)
+            while (!(actorTask is null) && !switchThreadType)
             {
-                _status = ActorTaskSchedulerStatus.Terminated;
-                ReleaseLock();
-                TerminationCleanUp(isTerminalTask ? task : null);
-            }
-            else if (_shouldPause && (_front is null || (_front.Traits & ActorTaskTraits.Resuming) == 0))
-            {
-                _status = ActorTaskSchedulerStatus.Paused;
-                ReleaseLock();
-            }
-            else
-            {
-                var nextTask = _front;
+                var task = actorTask.Task;
+                var isTerminalTask = (actorTask.Traits & ActorTaskTraits.Terminal) != 0;
 
-                if (nextTask is null)
+                TryExecuteTask(task);
+
+                actorTask.CleanUpPostExecute();
+
+                var shouldTerminate = isTerminalTask || (actorTask.Traits & ActorTaskTraits.Critical) != 0 && task.Status != TaskStatus.RanToCompletion;
+
+                actorTask = null;
+
+                TakeLock();
+
+                if (shouldTerminate)
                 {
-                    _status = ActorTaskSchedulerStatus.Inactive;
+                    _status = ActorTaskSchedulerStatus.Terminated;
+                    ReleaseLock();
+                    TerminationCleanUp(isTerminalTask ? task : null);
+                }
+                else if (_shouldPause && (_front is null || (_front.Traits & ActorTaskTraits.Resuming) == 0))
+                {
+                    _status = ActorTaskSchedulerStatus.Paused;
                     ReleaseLock();
                 }
                 else
                 {
-                    _front = _front.Next;
-
                     if (_front is null)
                     {
-                        _back = null;
-                    }
-
-                    ReleaseLock();
-
-#if NETSTANDARD1_3
-                    if (_isNonThreadPoolThread)
-#else
-                    if (!Thread.CurrentThread.IsThreadPoolThread)
-#endif
-                    {
-                        Execute(nextTask);
+                        _status = ActorTaskSchedulerStatus.Inactive;
                     }
                     else
                     {
-                        QueueForExecution(nextTask);
+                        _shouldPause = false;
+                        actorTask = _front;
+                        _front = _front.Next;
+
+                        if (_front is null)
+                        {
+                            _back = null;
+                        }
+
+                        if (!onLongRunningThread)
+                        {
+                            switchThreadType = (actorTask.Task.CreationOptions & TaskCreationOptions.LongRunning) == TaskCreationOptions.LongRunning;
+                        }
                     }
+
+                    ReleaseLock();
                 }
+            }
+
+            CleanUpThreadAfterExecute(previousSynchronizationContext);
+
+            if (switchThreadType)
+            {
+                QueueForExecution(actorTask);
             }
         }
 

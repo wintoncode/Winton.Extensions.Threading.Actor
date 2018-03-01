@@ -279,7 +279,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Within.FiveSeconds(() => times.Should().HaveCount(4));
+            Within.FiveSeconds(() => times.Count.Should().BeGreaterOrEqualTo(4));
 
             emittedException.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Be("Pah!");
 
