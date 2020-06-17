@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>    
-    <TargetFrameworks>netcoreapp1.1;netcoreapp2.0;net462</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.0;net462</TargetFrameworks>
     <SignAssembly>True</SignAssembly>    
     <DelaySign>False</DelaySign>    
     <AssemblyOriginatorKeyFile>../keys/Winton.Extensions.Threading.Actor.snk</AssemblyOriginatorKeyFile>
