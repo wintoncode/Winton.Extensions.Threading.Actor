@@ -43,7 +43,7 @@ These can be found in the [USAGE](USAGE.md) file.
 The following platforms are supported:
 
 - .NET Core
-- .NET 4.5.1
+- .NET 4.6.2
 
 ## Installation
 
@@ -52,7 +52,7 @@ library.
 
 ## Building
 
-Currently version `1.0` of the [.NET Core build tools](https://docs.microsoft.com/en-us/dotnet/articles/core/tools/) is required to build the source code.
+Currently version `2.0` of the [.NET Core build tools](https://docs.microsoft.com/en-us/dotnet/articles/core/tools/) is required to build the source code.
 To build from Visual Studio you'll need VS 2017.
 
 Assuming you have the .NET Core build tools installed, building the library from the command-line just involves:
