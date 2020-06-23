@@ -4,6 +4,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Winton.Extensions.Threading.Actor
 {
@@ -30,7 +31,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">Actor</param>
         /// <param name="work">Work to do.</param>
         /// <returns>Actor</returns>
-        public static IActor WithStartWork(this IActor self, Action work) => self.WithStartWork(new ActorStartWork(work));
+        public static IActor WithStartWork(this IActor self, Action work) => self.WithStartWork(new ActorStartWork(SuppressTransactionScopeWrapper(work)));
 
         /// <summary>
         /// Specify work for actor start-up.
@@ -38,7 +39,7 @@ namespace Winton.Extensions.Threading.Actor
         /// <param name="self">Actor</param>
         /// <param name="work">Async work to do.</param>
         /// <returns>Actor</returns>
-        public static IActor WithStartWork(this IActor self, Func<Task> work) => self.WithStartWork(new ActorStartWork(work));
+        public static IActor WithStartWork(this IActor self, Func<Task> work) => self.WithStartWork(new ActorStartWork(SuppressTransactionScopeWrapper(work)));
 
         /// <summary>
         /// Specify work for actor start-up.
@@ -52,7 +53,7 @@ namespace Winton.Extensions.Threading.Actor
             return self;
         }
 
-        public static IActor WithStopWork(this IActor self, Action work) => self.WithStopWork(new ActorStopWork(work));
+        public static IActor WithStopWork(this IActor self, Action work) => self.WithStopWork(new ActorStopWork(SuppressTransactionScopeWrapper(work)));
 
         /// <summary>
         /// Enqueue a procedure.
@@ -183,6 +184,46 @@ namespace Winton.Extensions.Threading.Actor
                 });
 
             return cancellationTokenSource.Token;
+        }
+
+        internal static Func<T> SuppressTransactionScopeWrapper<T>(Func<T> function)
+        {
+            return () =>
+            {
+                using (var scope = new TransactionScope(
+                    TransactionScopeOption.Suppress,
+                    TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    try
+                    {
+                        return function();
+                    }
+                    finally
+                    {
+                        scope.Complete();
+                    }
+                }
+            };
+        }
+
+        internal static Action SuppressTransactionScopeWrapper(Action action)
+        {
+            return () =>
+            {
+                using (var scope = new TransactionScope(
+                    TransactionScopeOption.Suppress,
+                    TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    try
+                    {
+                        action();
+                    }
+                    finally
+                    {
+                        scope.Complete();
+                    }
+                }
+            };
         }
     }
 }
