@@ -302,29 +302,29 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            actor.Awaiting(async x => await x.Enqueue(() => ValidateActorThread(enqueueOptions), enqueueOptions)).ShouldNotThrow();
+            actor.Awaiting(x => x.Enqueue(() => ValidateActorThread(enqueueOptions), enqueueOptions)).Should().NotThrow();
             actor.Awaiting(
-                async x => await x.Enqueue(
+                x => x.Enqueue(
                                () =>
                                {
                                    ValidateActorThread(enqueueOptions);
                                    return 676;
-                               }, enqueueOptions)).ShouldNotThrow();
+                               }, enqueueOptions)).Should().NotThrow();
             actor.Awaiting(
-                async x => await x.Enqueue(
+                x => x.Enqueue(
                                async () =>
                                {
                                    await Task.Yield();
                                    ValidateActorThread(enqueueOptions);
-                               }, enqueueOptions)).ShouldNotThrow();
+                               }, enqueueOptions)).Should().NotThrow();
             actor.Awaiting(
-                async x => await x.Enqueue(
+                x => x.Enqueue(
                                async () =>
                                {
                                    await Task.Yield();
                                    ValidateActorThread(enqueueOptions);
                                    return "moose";
-                               }, enqueueOptions)).ShouldNotThrow();
+                               }, enqueueOptions)).Should().NotThrow();
 
         }
 
@@ -507,7 +507,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     stopTask.AwaitingShouldCompleteIn(_waitTimeout);
                     break;
                 case StopWorkOutcome.Faults:
-                    ((Func<Task>)(async () => await stopTask)).ShouldThrow<InvalidOperationException>().WithMessage("Never meant to be");
+                    ((Func<Task>)(async () => await stopTask)).Should().Throw<InvalidOperationException>().WithMessage("Never meant to be");
                     break;
                 default:
                     throw new Exception($"Unhandled test case {stopWorkOutcome}.");
@@ -657,7 +657,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                             }
                         };
 
-            actor.Awaiting(async x => await x.Start()).ShouldNotThrow();
+            actor.Awaiting(x => x.Start()).Should().NotThrow();
         }
 
         [Theory]
@@ -675,7 +675,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            actor.Awaiting(async x => await x.Stop()).ShouldNotThrow();
+            actor.Awaiting(x => x.Stop()).Should().NotThrow();
         }
 
         [Fact]
@@ -728,7 +728,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.StartWork = new ActorStartWork(() => { });
 
             Action action = () => actor.StartWork = new ActorStartWork(() => { });
-            action.ShouldThrow<InvalidOperationException>().WithMessage("Start work already specified.");
+            action.Should().Throw<InvalidOperationException>().WithMessage("Start work already specified.");
         }
 
         [Fact]
@@ -739,7 +739,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             actor.StopWork = new ActorStopWork(() => { });
 
             Action action = () => actor.StopWork = new ActorStopWork(() => { });
-            action.ShouldThrow<InvalidOperationException>().WithMessage("Stop work already specified.");
+            action.Should().Throw<InvalidOperationException>().WithMessage("Stop work already specified.");
         }
 
         [Fact]
@@ -747,7 +747,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         {
             var actor = CreateActor();
             Action action = () => actor.StartWork = new ActorStartWork(() => { });
-            action.ShouldThrow<InvalidOperationException>().WithMessage("Start work cannot be specified after starting an actor.");
+            action.Should().Throw<InvalidOperationException>().WithMessage("Start work cannot be specified after starting an actor.");
         }
 
         [Fact]
@@ -755,7 +755,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         {
             var actor = CreateActor();
             Action action = () => actor.StopWork = new ActorStopWork(() => { });
-            action.ShouldThrow<InvalidOperationException>()
+            action.Should().Throw<InvalidOperationException>()
                   .WithMessage("Stop work cannot be specified after starting an actor.");
         }
 
@@ -1007,7 +1007,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     StopWork = new ActorStopWork(() => stopWorkCalled = true)
                 };
 
-            actor.Awaiting(async x => await x.Start()).ShouldThrow<Exception>().WithMessage("Error.");
+            actor.Awaiting(x => x.Start()).Should().Throw<Exception>().WithMessage("Error.");
 
             await actor.Stop();
 
@@ -1045,7 +1045,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
         private static void ShouldBeCancelled(Task task)
         {
-            Expect.That(async () => await task).ShouldThrow<TaskCanceledException>();
+            Expect.That(async () => await task).Should().Throw<OperationCanceledException>();
         }
 
         private void MarkAlreadyStopped()
