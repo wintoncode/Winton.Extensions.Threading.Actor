@@ -108,7 +108,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     }
                 }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
 
-            taskCompletionSource.Awaiting(async x => await x.Task).ShouldNotThrow();
+            taskCompletionSource.Awaiting(x => x.Task).Should().NotThrow();
         }
 
         [Fact]
@@ -132,7 +132,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     }
                 }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
 
-            taskCompletionSource.Awaiting(async x => await x.Task).ShouldNotThrow();
+            taskCompletionSource.Awaiting(x => x.Task).Should().NotThrow();
         }
 
         [Theory]
@@ -326,7 +326,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Expect.That(async () => await task).ShouldThrow<Exception>().WithMessage("Pah!");
+            Expect.That(async () => await task).Should().Throw<Exception>().WithMessage("Pah!");
 
             // The schedule should have been cancelled so expect the times list to not be added to
             For.OneSecond(() => times.Should().HaveCount(3));
@@ -336,7 +336,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void SynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
             Expect.That(() => _scheduler.Schedule(() => { }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .ShouldThrow<ArgumentOutOfRangeException>()
+                  .Should().Throw<ArgumentOutOfRangeException>()
                   .And.ParamName.Should().Be("interval");
         }
 
@@ -344,7 +344,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void SynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
             Expect.That(() => _scheduler.Schedule((Action)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .ShouldThrow<ArgumentNullException>()
+                  .Should().Throw<ArgumentNullException>()
                   .And.ParamName.Should().Be("work");
         }
 
@@ -352,7 +352,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
             Expect.That(() => _scheduler.Schedule(async () => { await Task.Delay(10); }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .ShouldThrow<ArgumentOutOfRangeException>()
+                  .Should().Throw<ArgumentOutOfRangeException>()
                   .And.ParamName.Should().Be("interval");
         }
 
@@ -360,7 +360,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
             Expect.That(() => _scheduler.Schedule(null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .ShouldThrow<ArgumentNullException>()
+                  .Should().Throw<ArgumentNullException>()
                   .And.ParamName.Should().Be("work");
         }
     }

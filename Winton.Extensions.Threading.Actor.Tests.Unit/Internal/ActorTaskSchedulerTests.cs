@@ -56,22 +56,22 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             var task1 = _actorTaskFactory.StartNew(() => throw new Exception("oh dear"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
-            task1.Awaiting(async x => await x).ShouldThrow<Exception>().WithMessage("oh dear");
+            task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
 
             _scheduler.TerminatedTask.Wait(TimeSpan.FromMilliseconds(250)).Should().BeFalse();
 
             var task2 = _actorTaskFactory.StartNew(() => throw new Exception("no!!!"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Critical);
             var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
-            task2.Awaiting(async x => await x).ShouldThrow<Exception>().WithMessage("no!!!");
+            task2.Awaiting(x => x).Should().Throw<Exception>().WithMessage("no!!!");
 
             ThrowIfWaitTimesOut(_scheduler.TerminatedTask);
 
-            task3.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+            task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
 
             var task4 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
-            task4.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+            task4.Awaiting(x => x).Should().Throw<TaskCanceledException>();
         }
 
         [Theory]
@@ -101,24 +101,24 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (terminalWorkOutcomeType)
             {
                 case TaskStatus.Canceled:
-                    task1.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
-                    _scheduler.TerminatedTask.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+                    task1.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+                    _scheduler.TerminatedTask.Awaiting(x => x).Should().Throw<TaskCanceledException>();
                     break;
                 case TaskStatus.Faulted:
-                    task1.Awaiting(async x => await x).ShouldThrow<Exception>().WithMessage("oh dear");
-                    _scheduler.TerminatedTask.Awaiting(async x => await x).ShouldThrow<Exception>().WithMessage("oh dear");
+                    task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
+                    _scheduler.TerminatedTask.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
                     break;
                 case TaskStatus.RanToCompletion:
-                    task1.Awaiting(async x => await x).ShouldNotThrow();
-                    _scheduler.TerminatedTask.Awaiting(async x => await x).ShouldNotThrow();
+                    task1.Awaiting(x => x).Should().NotThrow();
+                    _scheduler.TerminatedTask.Awaiting(x => x).Should().NotThrow();
                     break;
             }
 
-            task2.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+            task2.Awaiting(x => x).Should().Throw<TaskCanceledException>();
 
             var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
-            task3.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+            task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
         }
 
         [Fact]
@@ -326,7 +326,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 lateTask = _actorTaskFactory.StartNew(() => { }, CancellationToken.None, TaskCreationOptions.None);
             }
 
-            lateTask.Awaiting(async x => await x).ShouldThrow<TaskCanceledException>();
+            lateTask.Awaiting(x => x).Should().Throw<TaskCanceledException>();
         }
 
         [Fact]
@@ -438,17 +438,19 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         {
             var timeout = Task.Delay(_waitTimeout);
 
-            Task.WhenAny(timeout, task).Awaiting(async x =>
-                                                 {
-                                                     var firstToFinish = await x.ConfigureAwait(false);
+            async Task Action(Task<Task> x)
+            {
+                var firstToFinish = await x.ConfigureAwait(false);
 
-                                                     if (firstToFinish == timeout)
-                                                     {
-                                                         throw new TimeoutException("Timed out awaiting task completion.");
-                                                     }
+                if (firstToFinish == timeout)
+                {
+                    throw new TimeoutException("Timed out awaiting task completion.");
+                }
 
-                                                     await firstToFinish.ConfigureAwait(false);
-                                                 }).ShouldNotThrow();
+                await firstToFinish.ConfigureAwait(false);
+            }
+
+            Task.WhenAny(timeout, task).Awaiting(Action).Should().NotThrow();
         }
 
         private void UnpauseScheduler()
