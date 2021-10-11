@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using FluentAssertions;
 using Winton.Extensions.Threading.Actor.Tests.Utilities;
 using Xunit;
@@ -732,6 +733,108 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Fact]
+        public async Task ShouldHaveNoAmbientTransactionInStartUpWork()
+        {
+            var attempts = 0;
+
+            var actor = CreateActor(ActorCreateOptions.None)
+                .WithStartWork(async () =>
+                {
+                    using (var scope = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+                    {
+                        await Task.Delay(200);
+                    } // Restores ambient transaction scope which should be null
+
+                    if (Transaction.Current == null)
+                    {
+                        Interlocked.Increment(ref attempts);
+                    }
+                });
+
+            await actor.Start();
+
+            attempts.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldHaveNoAmbientTransactionInEnqueuedWork()
+        {
+            var attempts = 0;
+
+            var actor = CreateActor(ActorCreateOptions.None);
+            await actor.Start();
+
+            await actor.Enqueue(async () =>
+                {
+                    using (var scope = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+                    {
+                        await Task.Delay(200);
+                    } // Restores ambient transaction scope which should be null
+
+                    if (Transaction.Current == null)
+                    {
+                        Interlocked.Increment(ref attempts);
+                    }
+                });
+
+            attempts.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldHaveNoAmbientTransactionInEnqueuedWorkThatReturnsData()
+        {
+            var attempts = 0;
+
+            var actor = CreateActor(ActorCreateOptions.None);
+            await actor.Start();
+
+            var result = await actor.Enqueue(async () =>
+            {
+                using (var scope = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    await Task.Delay(200);
+                } // Restores ambient transaction scope which should be null
+
+                if (Transaction.Current == null)
+                {
+                    Interlocked.Increment(ref attempts);
+                }
+
+                return attempts;
+            });
+
+            attempts.Should().Be(1);
+            result.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task ShouldHaveNoAmbientTransactionInEnqueuedWorkThatIsSynchronousAndReturnsData()
+        {
+            var attempts = 0;
+
+            var actor = CreateActor(ActorCreateOptions.None);
+            await actor.Start();
+
+            var result = await actor.Enqueue(() =>
+            {
+                using (var scope = new TransactionScope(TransactionScopeOption.Suppress))
+                {
+                    Thread.Sleep(200);
+                } // Restores ambient transaction scope which should be null
+
+                if (Transaction.Current == null)
+                {
+                    Interlocked.Increment(ref attempts);
+                }
+
+                return attempts;
+            });
+
+            attempts.Should().Be(1);
+            result.Should().Be(1);
+        }
+
+        [Fact]
         public void ShouldOnlyBeAbleToSpecifyStopWorkOnce()
         {
             var actor = CreateActor(ActorCreateOptions.None);
@@ -971,7 +1074,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
                 var tasks = new Task[4];
 
-                tasks[0] = 
+                tasks[0] =
                     actor.Enqueue(
                     async () =>
                     {

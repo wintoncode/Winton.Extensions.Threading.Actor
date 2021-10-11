@@ -186,6 +186,46 @@ namespace Winton.Extensions.Threading.Actor
             return cancellationTokenSource.Token;
         }
 
+        internal static Func<Task<T>> SuppressTransactionScopeWrapper<T>(Func<Task<T>> function)
+        {
+            return async () =>
+            {
+                using (var scope = new TransactionScope(
+                    TransactionScopeOption.Suppress,
+                    TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    try
+                    {
+                        return await function().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        scope.Complete();
+                    }
+                }
+            };
+        }
+
+        internal static Func<Task> SuppressTransactionScopeWrapper(Func<Task> function)
+        {
+            return async () =>
+            {
+                using (var scope = new TransactionScope(
+                    TransactionScopeOption.Suppress,
+                    TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    try
+                    {
+                        await function().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        scope.Complete();
+                    }
+                }
+            };
+        }
+
         internal static Func<T> SuppressTransactionScopeWrapper<T>(Func<T> function)
         {
             return () =>

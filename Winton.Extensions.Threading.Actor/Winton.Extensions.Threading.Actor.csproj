@@ -17,7 +17,7 @@
     <PackageId>Winton.Extensions.Threading.Actor</PackageId>
     <PackageTags>TPL;Actor;Concurrency;async;await;.NET;.NET Core;dotnetcore;winton;wintoncode</PackageTags>
     <PackageProjectUrl>https://github.com/wintoncode/Winton.Extensions.Threading.Actor</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/wintoncode/Winton.Extensions.Threading.Actor/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicense>https://github.com/wintoncode/Winton.Extensions.Threading.Actor/blob/master/LICENSE</PackageLicense>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/wintoncode/Winton.Extensions.Threading.Actor.git</RepositoryUrl>
     <GenerateAssemblyCompanyAttribute>true</GenerateAssemblyCompanyAttribute>
