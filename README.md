@@ -1,5 +1,7 @@
 # Winton.Extensions.Threading.Actor
 
+:)
+
 [![Build Status](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor.svg?branch=master)](https://travis-ci.org/wintoncode/Winton.Extensions.Threading.Actor)
 [![Build status](https://ci.appveyor.com/api/projects/status/nddtjsmqktd5dggu/branch/master?svg=true)](https://ci.appveyor.com/project/wintoncode/winton-extensions-threading-actor/branch/master)
 [![NuGet version](https://img.shields.io/nuget/v/Winton.Extensions.Threading.Actor.svg)](https://www.nuget.org/packages/Winton.Extensions.Threading.Actor)
