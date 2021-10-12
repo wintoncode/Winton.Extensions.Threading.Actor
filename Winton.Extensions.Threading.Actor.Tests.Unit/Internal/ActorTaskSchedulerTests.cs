@@ -39,7 +39,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var count = 0;
             var task1 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
             var task2 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
-            
+
             Task.WhenAny(task1, task2).Wait(TimeSpan.FromSeconds(1)).Should().BeFalse("tasks should not have been executed if the scheduler is paused");
 
             var resumer = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, resumingTaskTraits);
@@ -54,14 +54,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         {
             UnpauseScheduler();
 
-            var task1 = _actorTaskFactory.StartNew(() => throw new Exception("oh dear"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task1 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("oh dear")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
             task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
 
             _scheduler.TerminatedTask.Wait(TimeSpan.FromMilliseconds(250)).Should().BeFalse();
 
-            var task2 = _actorTaskFactory.StartNew(() => throw new Exception("no!!!"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Critical);
-            var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task2 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("no!!!")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Critical);
+            var task3 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("shouldn't hit this")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
 
             task2.Awaiting(x => x).Should().Throw<Exception>().WithMessage("no!!!");
 
@@ -97,7 +97,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             var task1 = _actorTaskFactory.StartNew(TerminalWork, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Terminal);
             var task2 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
-            
+
             switch (terminalWorkOutcomeType)
             {
                 case TaskStatus.Canceled:
@@ -269,7 +269,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     task3ThreadId = Thread.CurrentThread.ManagedThreadId;
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
                 }, CancellationToken.None, TaskCreationOptions.None);
-            
+
             barrier.SetResult(true);
 
             ThrowIfWaitTimesOut(task1);

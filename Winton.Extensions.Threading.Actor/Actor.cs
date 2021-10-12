@@ -212,13 +212,15 @@ namespace Winton.Extensions.Threading.Actor
         private async Task Enqueue(Func<Task> asyncAction, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits)
         {
             var task = _actorTaskFactory.StartNew(asyncAction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
-            await await task.ConfigureAwait(false);
+            var nestedTask = await task.ConfigureAwait(false);
+            await nestedTask.ConfigureAwait(false);
         }
 
         private async Task<T> Enqueue<T>(Func<Task<T>> asyncFunction, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits)
         {
             var task = _actorTaskFactory.StartNew(asyncFunction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
-            return await await task.ConfigureAwait(false);
+            var nestedTask = await task.ConfigureAwait(false);
+            return await nestedTask.ConfigureAwait(false);
         }
 
         private enum StateName
