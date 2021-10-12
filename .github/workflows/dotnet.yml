@@ -23,7 +23,8 @@ jobs:
         dotnet-version: 5.x
     - name: Version
       if: ${{ github.event_name != 'pull_request' }} 
-      run: ./etc/scripts/write_version_targets.sh
+      run: etc/scripts/write_version_targets.sh
+      shell: bash
     - name: Restore dependencies
       run: >
         dotnet restore
@@ -31,20 +32,20 @@ jobs:
       run: >
         dotnet build
         --no-restore --configuration Release --framework netstandard2.0
-        ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj
+        Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj
     - name: Test
       run: >
         dotnet test
         --no-restore --verbosity normal --configuration Release --framework net5.0
-        ./Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj
+        Winton.Extensions.Threading.Actor.Tests.Unit/Winton.Extensions.Threading.Actor.Tests.Unit.csproj
     - name: Pack
-      if: ${{ matrix.os == 'windows-latest' }} 
+      if: ${{ startsWith(matrix.os, 'windows-') }} 
       run: >
         dotnet pack
-        --no-build --no-restore --configuration Release --output ..
-        ./Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj
+        --no-build --no-restore --configuration Release --output .
+        Winton.Extensions.Threading.Actor/Winton.Extensions.Threading.Actor.csproj
     - name: Push
-      if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' }} 
+      if: ${{ startsWith(matrix.os, 'windows-') && github.event_name == 'release' }} 
       run: >
         dotnet nuget push
-        ./*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{secrets.NUGET_API_KEY}}
+        *.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{secrets.NUGET_API_KEY}}
