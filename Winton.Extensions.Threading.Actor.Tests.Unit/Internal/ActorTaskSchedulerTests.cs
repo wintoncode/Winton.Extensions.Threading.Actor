@@ -37,12 +37,12 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         internal async Task ShouldBeAbleToResumeInitiallyPausedScheduler(ActorTaskTraits resumingTaskTraits)
         {
             var count = 0;
-            var task1 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
-            var task2 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task1 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
+            var task2 = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             Task.WhenAny(task1, task2).Wait(TimeSpan.FromSeconds(1)).Should().BeFalse("tasks should not have been executed if the scheduler is paused");
 
-            var resumer = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, resumingTaskTraits);
+            var resumer = _actorTaskFactory.StartNew(() => ++count, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, resumingTaskTraits);
 
             (await resumer).Should().Be(1);
             (await task1).Should().Be(2);
@@ -54,14 +54,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         {
             UnpauseScheduler();
 
-            var task1 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("oh dear")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task1 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("oh dear")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
 
             _scheduler.TerminatedTask.Wait(TimeSpan.FromMilliseconds(250)).Should().BeFalse();
 
-            var task2 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("no!!!")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Critical);
-            var task3 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("shouldn't hit this")), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task2 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("no!!!")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.Critical);
+            var task3 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("shouldn't hit this")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             task2.Awaiting(x => x).Should().Throw<Exception>().WithMessage("no!!!");
 
@@ -69,7 +69,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
 
-            var task4 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task4 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             task4.Awaiting(x => x).Should().Throw<TaskCanceledException>();
         }
@@ -95,8 +95,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 }
             }
 
-            var task1 = _actorTaskFactory.StartNew(TerminalWork, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Terminal);
-            var task2 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task1 = _actorTaskFactory.StartNew(TerminalWork, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.Terminal);
+            var task2 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this"), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             switch (terminalWorkOutcomeType)
             {
@@ -116,7 +116,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             task2.Awaiting(x => x).Should().Throw<TaskCanceledException>();
 
-            var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+            var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
         }
@@ -135,13 +135,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
                     ThrowIfWaitTimesOut(barrier.Task);
                     task1ThreadId = Thread.CurrentThread.ManagedThreadId;
-                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorTaskTraits.None);
+                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorEnqueueOptions.Default, ActorTaskTraits.None);
             var task2 = _actorTaskFactory.StartNew(
                 () =>
                 {
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
                     task2ThreadId = Thread.CurrentThread.ManagedThreadId;
-                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorTaskTraits.None);
+                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             barrier.SetResult(true);
             ThrowIfWaitTimesOut(task1);
@@ -165,13 +165,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     ActorThreadAssertions.CurrentThreadShouldBeThreadPoolThread();
                     ThrowIfWaitTimesOut(barrier.Task);
                     shortTaskThreadId = Thread.CurrentThread.ManagedThreadId;
-                }, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.None);
+                }, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
             var longTask = _actorTaskFactory.StartNew(
                 () =>
                 {
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
                     longTaskThreadId = Thread.CurrentThread.ManagedThreadId;
-                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorTaskTraits.None);
+                }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             barrier.SetResult(true);
 
@@ -308,7 +308,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 _actorTaskFactory.StartNew(() =>
                                          {
                                              ThrowIfWaitTimesOut(barrier.Task);
-                                         }, CancellationToken.None, terminalTaskCreationOptions, ActorTaskTraits.Terminal);
+                                         }, CancellationToken.None, terminalTaskCreationOptions, ActorEnqueueOptions.Default, ActorTaskTraits.Terminal);
 
             Task lateTask = default;
 
@@ -455,7 +455,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
         private void UnpauseScheduler()
         {
-            _actorTaskFactory.StartNew(() => { }, CancellationToken.None, TaskCreationOptions.None, ActorTaskTraits.Resuming).Wait();
+            _actorTaskFactory.StartNew(() => { }, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.Resuming).Wait();
         }
     }
 }
