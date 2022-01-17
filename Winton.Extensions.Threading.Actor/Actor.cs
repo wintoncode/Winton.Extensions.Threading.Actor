@@ -205,20 +205,20 @@ namespace Winton.Extensions.Threading.Actor
         /// <inheritdoc />
         public Task<T> Enqueue<T>(Func<Task<T>> asyncFunction, CancellationToken cancellationToken, ActorEnqueueOptions options) => Enqueue(asyncFunction, cancellationToken, options, ActorTaskTraits.None);
 
-        private Task Enqueue(Action action, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits) => _actorTaskFactory.StartNew(action, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
+        private Task Enqueue(Action action, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits) => _actorTaskFactory.StartNew(action, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), options, taskTraits);
 
-        private Task<T> Enqueue<T>(Func<T> function, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits) => _actorTaskFactory.StartNew(function, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
+        private Task<T> Enqueue<T>(Func<T> function, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits) => _actorTaskFactory.StartNew(function, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), options, taskTraits);
 
         private async Task Enqueue(Func<Task> asyncAction, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits)
         {
-            var task = _actorTaskFactory.StartNew(asyncAction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
+            var task = _actorTaskFactory.StartNew(asyncAction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), options, taskTraits);
             var nestedTask = await task.ConfigureAwait(false);
             await nestedTask.ConfigureAwait(false);
         }
 
         private async Task<T> Enqueue<T>(Func<Task<T>> asyncFunction, CancellationToken cancellationToken, ActorEnqueueOptions options, ActorTaskTraits taskTraits)
         {
-            var task = _actorTaskFactory.StartNew(asyncFunction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), taskTraits);
+            var task = _actorTaskFactory.StartNew(asyncFunction, cancellationToken, ActorTaskOptions.GetTaskCreationOptions(options), options, taskTraits);
             var nestedTask = await task.ConfigureAwait(false);
             return await nestedTask.ConfigureAwait(false);
         }

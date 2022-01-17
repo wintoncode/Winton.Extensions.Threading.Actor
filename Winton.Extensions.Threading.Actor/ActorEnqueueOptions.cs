@@ -18,6 +18,10 @@ namespace Winton.Extensions.Threading.Actor
         /// <summary>
         /// Specifies that the work to be done will tend to be long-running.
         /// </summary>
-        WorkIsLongRunning = 1
+        WorkIsLongRunning = 1,
+        /// <summary>
+        /// Specifies that the work will not be wrapped with a block to suppress ambient transaction scope.
+        /// </summary>
+        NoSuppressTransactionScope = 2,
     }
 }

@@ -16,6 +16,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
         public ActorSynchronizationContext ChangeActorTaskKind(ActorTaskTraits actorTaskTraits) => new ActorSynchronizationContext(_actorTaskFactory, actorTaskTraits);
 
-        public override void Post(SendOrPostCallback callback, object state) => _actorTaskFactory.StartNew(() => callback(state), CancellationToken.None, TaskCreationOptions.None, _actorTaskTraits);
+        public override void Post(SendOrPostCallback callback, object state) => _actorTaskFactory.StartNew(() => callback(state), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, _actorTaskTraits);
     }
 }
