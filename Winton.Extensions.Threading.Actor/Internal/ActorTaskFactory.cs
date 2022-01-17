@@ -17,11 +17,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
             ActorTask.CurrentActorTaskTraits = traits;
             ActorTask.CurrentCanceller = cancellationTokenSource;
 
-            if ((taskCreationOptions & TaskCreationOptions.LongRunning) > 0)
-            {
-                Console.WriteLine($"LongRunning enqueue from here: {new System.Diagnostics.StackTrace()}");
-            }
-
             return Task.Factory.StartNew(
                 actorEnqueueOptions.HasFlag(ActorEnqueueOptions.NoSuppressTransactionScope) ? action : ActorExtensions.SuppressTransactionScopeWrapper(action),
                 cancellationTokenSource.Token,
@@ -35,11 +30,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
             ActorTask.CurrentActorTaskTraits = traits;
             ActorTask.CurrentCanceller = cancellationTokenSource;
-
-            if ((taskCreationOptions & TaskCreationOptions.LongRunning) > 0)
-            {
-                Console.WriteLine($"LongRunning enqueue from here: {new System.Diagnostics.StackTrace()}");
-            }
 
             return Task.Factory.StartNew(
                 actorEnqueueOptions.HasFlag(ActorEnqueueOptions.NoSuppressTransactionScope) ? asyncFunction : ActorExtensions.SuppressTransactionScopeWrapper(asyncFunction),
@@ -55,11 +45,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
             ActorTask.CurrentActorTaskTraits = traits;
             ActorTask.CurrentCanceller = cancellationTokenSource;
 
-            if ((taskCreationOptions & TaskCreationOptions.LongRunning) > 0)
-            {
-                Console.WriteLine($"LongRunning enqueue from here: {new System.Diagnostics.StackTrace()}");
-            }
-
             return Task.Factory.StartNew(
                 actorEnqueueOptions.HasFlag(ActorEnqueueOptions.NoSuppressTransactionScope) ? asyncFunction : ActorExtensions.SuppressTransactionScopeWrapper(asyncFunction),
                 cancellationTokenSource.Token,
@@ -73,11 +58,6 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
             ActorTask.CurrentActorTaskTraits = traits;
             ActorTask.CurrentCanceller = cancellationTokenSource;
-
-            if ((taskCreationOptions & TaskCreationOptions.LongRunning) > 0)
-            {
-                Console.WriteLine($"LongRunning enqueue from here: {new System.Diagnostics.StackTrace()}");
-            }
 
             return Task.Factory.StartNew(
                 actorEnqueueOptions.HasFlag(ActorEnqueueOptions.NoSuppressTransactionScope) ? function : ActorExtensions.SuppressTransactionScopeWrapper(function),
