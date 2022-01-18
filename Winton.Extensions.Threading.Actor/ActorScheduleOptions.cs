@@ -25,6 +25,10 @@ namespace Winton.Extensions.Threading.Actor
         /// responsive and should not block on work) this would never be used.  However, one use case might be if an actor
         /// were being used as a "single-threaded" work slave for another actor.
         /// </summary>
-        WorkIsLongRunning = 2
+        WorkIsLongRunning = 2,
+        /// <summary>
+        /// Specifies that the work to be done will not be wrapped within a block to suppress ambient transaction scope.
+        /// </summary>
+        NoSuppressTransactionScope = 4,
     }
 }
