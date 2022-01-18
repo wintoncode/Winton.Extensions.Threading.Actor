@@ -50,35 +50,35 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         [Fact]
-        public void FailureOfCriticalTaskShouldTerminateSchedulerWithSubsequentTasksBeingCancelled()
+        public async Task FailureOfCriticalTaskShouldTerminateSchedulerWithSubsequentTasksBeingCancelled()
         {
             UnpauseScheduler();
 
             var task1 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("oh dear")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
-            task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
+            await task1.Awaiting(x => x).Should().ThrowAsync<Exception>().WithMessage("oh dear");
 
             _scheduler.TerminatedTask.Wait(TimeSpan.FromMilliseconds(250)).Should().BeFalse();
 
             var task2 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("no!!!")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.Critical);
             var task3 = _actorTaskFactory.StartNew(new Action(() => throw new Exception("shouldn't hit this")), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
-            task2.Awaiting(x => x).Should().Throw<Exception>().WithMessage("no!!!");
+            await task2.Awaiting(x => x).Should().ThrowAsync<Exception>().WithMessage("no!!!");
 
-            ThrowIfWaitTimesOut(_scheduler.TerminatedTask);
+            await ThrowIfWaitTimesOut(_scheduler.TerminatedTask);
 
-            task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+            await task3.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
 
             var task4 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
-            task4.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+            await task4.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
         }
 
         [Theory]
         [InlineData(TaskStatus.Canceled)]
         [InlineData(TaskStatus.Faulted)]
         [InlineData(TaskStatus.RanToCompletion)]
-        public void SchedulingATerminalTaskShouldTerminateSchedulerWithSubsequentTasksBeingCancelled(TaskStatus terminalWorkOutcomeType)
+        public async Task SchedulingATerminalTaskShouldTerminateSchedulerWithSubsequentTasksBeingCancelled(TaskStatus terminalWorkOutcomeType)
         {
             UnpauseScheduler();
 
@@ -101,28 +101,28 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             switch (terminalWorkOutcomeType)
             {
                 case TaskStatus.Canceled:
-                    task1.Awaiting(x => x).Should().Throw<TaskCanceledException>();
-                    _scheduler.TerminatedTask.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+                    await task1.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
+                    await _scheduler.TerminatedTask.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
                     break;
                 case TaskStatus.Faulted:
-                    task1.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
-                    _scheduler.TerminatedTask.Awaiting(x => x).Should().Throw<Exception>().WithMessage("oh dear");
+                    await task1.Awaiting(x => x).Should().ThrowAsync<Exception>().WithMessage("oh dear");
+                    await _scheduler.TerminatedTask.Awaiting(x => x).Should().ThrowAsync<Exception>().WithMessage("oh dear");
                     break;
                 case TaskStatus.RanToCompletion:
-                    task1.Awaiting(x => x).Should().NotThrow();
-                    _scheduler.TerminatedTask.Awaiting(x => x).Should().NotThrow();
+                    await task1.Awaiting(x => x).Should().NotThrowAsync();
+                    await _scheduler.TerminatedTask.Awaiting(x => x).Should().NotThrowAsync();
                     break;
             }
 
-            task2.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+            await task2.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
 
             var task3 = _actorTaskFactory.StartNew(() => throw new Exception("shouldn't hit this either"), CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
-            task3.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+            await task3.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
         }
 
         [Fact]
-        public void ForLongRunningTasksShouldUseActiveThreadIfNotFromThreadPool()
+        public async Task ForLongRunningTasksShouldUseActiveThreadIfNotFromThreadPool()
         {
             UnpauseScheduler();
 
@@ -130,10 +130,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var task2ThreadId = 0;
             var barrier = new TaskCompletionSource<bool>();
             var task1 = _actorTaskFactory.StartNew(
-                () =>
+                async () =>
                 {
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
-                    ThrowIfWaitTimesOut(barrier.Task);
+                    await ThrowIfWaitTimesOut(barrier.Task);
                     task1ThreadId = Thread.CurrentThread.ManagedThreadId;
                 }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorEnqueueOptions.Default, ActorTaskTraits.None);
             var task2 = _actorTaskFactory.StartNew(
@@ -144,15 +144,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 }, CancellationToken.None, TaskCreationOptions.LongRunning, ActorEnqueueOptions.Default, ActorTaskTraits.None);
 
             barrier.SetResult(true);
-            ThrowIfWaitTimesOut(task1);
-            ThrowIfWaitTimesOut(task2);
+            await ThrowIfWaitTimesOut(task1);
+            await ThrowIfWaitTimesOut(task2);
 
             task1ThreadId.Should().NotBe(0);
             task2ThreadId.Should().Be(task1ThreadId);
         }
 
         [Fact]
-        public void ForLongRunningTasksShouldUseNonThreadPoolThreadIfActiveThreadFromThreadPool()
+        public async Task ForLongRunningTasksShouldUseNonThreadPoolThreadIfActiveThreadFromThreadPool()
         {
             UnpauseScheduler();
 
@@ -160,10 +160,10 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var longTaskThreadId = 0;
             var barrier = new TaskCompletionSource<bool>();
             var shortTask = _actorTaskFactory.StartNew(
-                () =>
+                async () =>
                 {
                     ActorThreadAssertions.CurrentThreadShouldBeThreadPoolThread();
-                    ThrowIfWaitTimesOut(barrier.Task);
+                    await ThrowIfWaitTimesOut(barrier.Task);
                     shortTaskThreadId = Thread.CurrentThread.ManagedThreadId;
                 }, CancellationToken.None, TaskCreationOptions.None, ActorEnqueueOptions.Default, ActorTaskTraits.None);
             var longTask = _actorTaskFactory.StartNew(
@@ -175,8 +175,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             barrier.SetResult(true);
 
-            ThrowIfWaitTimesOut(shortTask);
-            ThrowIfWaitTimesOut(longTask);
+            await ThrowIfWaitTimesOut(shortTask);
+            await ThrowIfWaitTimesOut(longTask);
 
             shortTaskThreadId.Should().NotBe(0);
             longTaskThreadId.Should().NotBe(0);
@@ -184,17 +184,17 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         [Fact]
-        public void ForLongRunningTasksShouldUseNonThreadPoolThreadIfNoActiveThread()
+        public async Task ForLongRunningTasksShouldUseNonThreadPoolThreadIfNoActiveThread()
         {
             UnpauseScheduler();
 
             var task = _actorTaskFactory.StartNew(ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread, CancellationToken.None, TaskCreationOptions.LongRunning);
 
-            ThrowIfWaitTimesOut(task);
+            await ThrowIfWaitTimesOut(task);
         }
 
         [Fact]
-        public void ForLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
+        public async Task ForLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
         {
             UnpauseScheduler();
 
@@ -202,13 +202,13 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var actorIdOnWorkThread = new ActorId();
             var task = _actorTaskFactory.StartNew(() => { actorIdOnWorkThread = Actor.CurrentId; }, CancellationToken.None, TaskCreationOptions.None);
 
-            ThrowIfWaitTimesOut(task);
+            await ThrowIfWaitTimesOut(task);
             Actor.CurrentId.Should().Be(ActorId.None);
             actorIdOnWorkThread.Should().Be(_actorId);
         }
 
         [Fact]
-        public void ForNonLongRunningTasksShouldUseThreadPoolThreads()
+        public async Task ForNonLongRunningTasksShouldUseThreadPoolThreads()
         {
             UnpauseScheduler();
 
@@ -219,11 +219,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var task2ThreadId = 0;
             var barrier1 = new TaskCompletionSource<bool>();
             var task1 = _actorTaskFactory.StartNew(
-                () =>
+                async () =>
                 {
                     task1ThreadId = Thread.CurrentThread.ManagedThreadId;
                     ActorThreadAssertions.CurrentThreadShouldBeThreadPoolThread();
-                    ThrowIfWaitTimesOut(barrier1.Task);
+                    await ThrowIfWaitTimesOut(barrier1.Task);
                 }, CancellationToken.None, TaskCreationOptions.None);
             var task2 = _actorTaskFactory.StartNew(
                 () =>
@@ -234,15 +234,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             barrier1.SetResult(true);
 
-            ThrowIfWaitTimesOut(task1);
-            ThrowIfWaitTimesOut(task2);
+            await ThrowIfWaitTimesOut(task1);
+            await ThrowIfWaitTimesOut(task2);
 
             task1ThreadId.Should().NotBe(0);
             task2ThreadId.Should().NotBe(0);
         }
 
         [Fact]
-        public void ForNonLongRunningTasksShouldUseActiveThreadIfNotFromThreadPool()
+        public async Task ForNonLongRunningTasksShouldUseActiveThreadIfNotFromThreadPool()
         {
             UnpauseScheduler();
 
@@ -251,11 +251,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             var task3ThreadId = 0;
             var barrier = new TaskCompletionSource<bool>();
             var task1 = _actorTaskFactory.StartNew(
-                () =>
+                async () =>
                 {
                     task1ThreadId = Thread.CurrentThread.ManagedThreadId;
                     ActorThreadAssertions.CurrentThreadShouldNotBeThreadPoolThread();
-                    ThrowIfWaitTimesOut(barrier.Task);
+                    await ThrowIfWaitTimesOut(barrier.Task);
                 }, CancellationToken.None, TaskCreationOptions.LongRunning);
             var task2 = _actorTaskFactory.StartNew(
                 () =>
@@ -272,9 +272,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
 
             barrier.SetResult(true);
 
-            ThrowIfWaitTimesOut(task1);
-            ThrowIfWaitTimesOut(task2);
-            ThrowIfWaitTimesOut(task3);
+            await ThrowIfWaitTimesOut(task1);
+            await ThrowIfWaitTimesOut(task2);
+            await ThrowIfWaitTimesOut(task3);
 
             task1ThreadId.Should().NotBe(0);
             task2ThreadId.Should().Be(task1ThreadId);
@@ -282,14 +282,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         [Fact]
-        public void ForNonLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
+        public async Task ForNonLongRunningTasksThreadShouldBeMarkedAsActorThreadDuringExecution()
         {
             UnpauseScheduler();
 
             Actor.CurrentId.Should().Be(ActorId.None);
             var actorIdOnWorkThread = new ActorId();
             var task = _actorTaskFactory.StartNew(() => { actorIdOnWorkThread = Actor.CurrentId; }, CancellationToken.None, TaskCreationOptions.None);
-            ThrowIfWaitTimesOut(task);
+            await ThrowIfWaitTimesOut(task);
             Actor.CurrentId.Should().Be(ActorId.None);
             actorIdOnWorkThread.Should().Be(_actorId);
         }
@@ -299,15 +299,15 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [InlineData(TaskCreationOptions.None, LateScheduleType.AfterTerminalTaskComplete)]
         [InlineData(TaskCreationOptions.LongRunning, LateScheduleType.WhilstTerminalTaskProcessing)]
         [InlineData(TaskCreationOptions.LongRunning, LateScheduleType.AfterTerminalTaskComplete)]
-        public void ShouldBeAbleToTerminateSchedulerSuchThatNoFurtherTasksAreExecuted(TaskCreationOptions terminalTaskCreationOptions, LateScheduleType lateScheduleType)
+        public async Task ShouldBeAbleToTerminateSchedulerSuchThatNoFurtherTasksAreExecuted(TaskCreationOptions terminalTaskCreationOptions, LateScheduleType lateScheduleType)
         {
             UnpauseScheduler();
 
             var barrier = new TaskCompletionSource<bool>();
             var terminalTask =
-                _actorTaskFactory.StartNew(() =>
+                _actorTaskFactory.StartNew(async () =>
                                          {
-                                             ThrowIfWaitTimesOut(barrier.Task);
+                                             await ThrowIfWaitTimesOut(barrier.Task);
                                          }, CancellationToken.None, terminalTaskCreationOptions, ActorEnqueueOptions.Default, ActorTaskTraits.Terminal);
 
             Task lateTask = default;
@@ -326,7 +326,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 lateTask = _actorTaskFactory.StartNew(() => { }, CancellationToken.None, TaskCreationOptions.None);
             }
 
-            lateTask.Awaiting(x => x).Should().Throw<TaskCanceledException>();
+            await lateTask.Awaiting(x => x).Should().ThrowAsync<TaskCanceledException>();
         }
 
         [Fact]
@@ -434,7 +434,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
             return promise.Task;
         }
 
-        private void ThrowIfWaitTimesOut(Task task)
+        private async Task ThrowIfWaitTimesOut(Task task)
         {
             var timeout = Task.Delay(_waitTimeout);
 
@@ -450,7 +450,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                 await firstToFinish.ConfigureAwait(false);
             }
 
-            Task.WhenAny(timeout, task).Awaiting(Action).Should().NotThrow();
+            await Task.WhenAny(timeout, task).Awaiting(Action).Should().NotThrowAsync();
         }
 
         private void UnpauseScheduler()

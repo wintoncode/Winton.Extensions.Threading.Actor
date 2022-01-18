@@ -303,29 +303,29 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            actor.Awaiting(x => x.Enqueue(() => ValidateActorThread(enqueueOptions), enqueueOptions)).Should().NotThrow();
-            actor.Awaiting(
+            await actor.Awaiting(x => x.Enqueue(() => ValidateActorThread(enqueueOptions), enqueueOptions)).Should().NotThrowAsync();
+            await actor.Awaiting(
                 x => x.Enqueue(
                                () =>
                                {
                                    ValidateActorThread(enqueueOptions);
                                    return 676;
-                               }, enqueueOptions)).Should().NotThrow();
-            actor.Awaiting(
+                               }, enqueueOptions)).Should().NotThrowAsync();
+            await actor.Awaiting(
                 x => x.Enqueue(
                                async () =>
                                {
                                    await Task.Yield();
                                    ValidateActorThread(enqueueOptions);
-                               }, enqueueOptions)).Should().NotThrow();
-            actor.Awaiting(
+                               }, enqueueOptions)).Should().NotThrowAsync();
+            await actor.Awaiting(
                 x => x.Enqueue(
                                async () =>
                                {
                                    await Task.Yield();
                                    ValidateActorThread(enqueueOptions);
                                    return "moose";
-                               }, enqueueOptions)).Should().NotThrow();
+                               }, enqueueOptions)).Should().NotThrowAsync();
 
         }
 
@@ -349,7 +349,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Fact]
-        public void ShouldNotEnqueueAnyMoreWorkAfterAskedToStop()
+        public async Task ShouldNotEnqueueAnyMoreWorkAfterAskedToStop()
         {
             var stageOrder = new List<string>();
             var expectedStageOrder =
@@ -377,7 +377,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             MarkAlreadyStopped();
 
-            ShouldBeCancelled(lateWork);
+            await ShouldBeCancelled(lateWork);
             stopTask.AwaitingShouldCompleteIn(_waitTimeout);
 
             stageOrder.Should().Equal(expectedStageOrder);
@@ -441,7 +441,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [InlineData(ResumeTestCase.AwaitOnTaskFactoryScheduledTask, StopWorkOutcome.Faults)]
         [InlineData(ResumeTestCase.AwaitOnSecondActor, StopWorkOutcome.Completes)]
         [InlineData(ResumeTestCase.AwaitOnSecondActor, StopWorkOutcome.Faults)]
-        public void ShouldNotBeAbleToResumeWorkAfterStop(ResumeTestCase resumeTestCase, StopWorkOutcome stopWorkOutcome)
+        public async Task ShouldNotBeAbleToResumeWorkAfterStop(ResumeTestCase resumeTestCase, StopWorkOutcome stopWorkOutcome)
         {
             var actor1 = CreateActor(
                 x => x.StopWork = new ActorStopWork(
@@ -508,7 +508,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     stopTask.AwaitingShouldCompleteIn(_waitTimeout);
                     break;
                 case StopWorkOutcome.Faults:
-                    ((Func<Task>)(async () => await stopTask)).Should().Throw<InvalidOperationException>().WithMessage("Never meant to be");
+                    await ((Func<Task>)(async () => await stopTask)).Should().ThrowAsync<InvalidOperationException>().WithMessage("Never meant to be");
                     break;
                 default:
                     throw new Exception($"Unhandled test case {stopWorkOutcome}.");
@@ -555,7 +555,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         }
 
         [Fact]
-        public void ShouldNotStartProcessingIfStopAlreadyCalled()
+        public async Task ShouldNotStartProcessingIfStopAlreadyCalled()
         {
             var stageOrder = new List<string>();
             var actor = CreateActor(x =>
@@ -582,8 +582,8 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             stageOrder.Should().BeEmpty();
 
-            ShouldBeCancelled(shouldBeCancelled[0]);
-            ShouldBeCancelled(shouldBeCancelled[1]);
+            await ShouldBeCancelled(shouldBeCancelled[0]);
+            await ShouldBeCancelled(shouldBeCancelled[1]);
         }
 
         [Fact]
@@ -648,7 +648,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
         [Theory]
         [InlineData(ActorEnqueueOptions.WorkIsLongRunning)]
         [InlineData(ActorEnqueueOptions.Default)]
-        public void ShouldScheduleStartTaskAsLongRunningIfRequested(ActorEnqueueOptions startOptions)
+        public async Task ShouldScheduleStartTaskAsLongRunningIfRequested(ActorEnqueueOptions startOptions)
         {
             var actor = new Actor
                         {
@@ -658,7 +658,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                             }
                         };
 
-            actor.Awaiting(x => x.Start()).Should().NotThrow();
+            await actor.Awaiting(x => x.Start()).Should().NotThrowAsync();
         }
 
         [Theory]
@@ -676,7 +676,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
 
             await actor.Start();
 
-            actor.Awaiting(x => x.Stop()).Should().NotThrow();
+            await actor.Awaiting(x => x.Stop()).Should().NotThrowAsync();
         }
 
         [Fact]
@@ -919,16 +919,16 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             await task4;
             await task6;
             await task8;
-            ShouldBeCancelled(task2);
-            ShouldBeCancelled(task3);
-            ShouldBeCancelled(task5);
-            ShouldBeCancelled(task7);
+            await ShouldBeCancelled(task2);
+            await ShouldBeCancelled(task3);
+            await ShouldBeCancelled(task5);
+            await ShouldBeCancelled(task7);
         }
 
         [Theory]
         [InlineData(StopTaskCancellationTestCase.CancelDuringWork)]
         [InlineData(StopTaskCancellationTestCase.CancelPriorToInvoke)]
-        public void ShouldBeAbleToCancelStopWorkButNotTermination(StopTaskCancellationTestCase testCase)
+        public async Task ShouldBeAbleToCancelStopWorkButNotTermination(StopTaskCancellationTestCase testCase)
         {
             var cancellationTokenSource = new CancellationTokenSource();
             var startedStopWorkFlag = new TaskCompletionSource<bool>();
@@ -959,18 +959,18 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     throw new Exception($"Unhandled test case {testCase}.");
             }
 
-            ShouldBeCancelled(stopTask);
+            await ShouldBeCancelled(stopTask);
 
             if (testCase == StopTaskCancellationTestCase.CancelPriorToInvoke)
             {
                 startedStopWorkFlag.Task.Wait(TimeSpan.FromSeconds(1)).Should().BeFalse();
             }
 
-            ShouldBeCancelled(actor.Enqueue(() => { }));
+            await ShouldBeCancelled(actor.Enqueue(() => { }));
         }
 
         [Fact]
-        public void ShouldNotFailEnqueuingWorkAlreadyCancelled()
+        public async Task ShouldNotFailEnqueuingWorkAlreadyCancelled()
         {
             var actor = CreateActor();
 
@@ -993,14 +993,14 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                                           return "moose";
                                       }, cancellationTokenSource4.Token);
 
-            ShouldBeCancelled(task1);
-            ShouldBeCancelled(task2);
-            ShouldBeCancelled(task3);
-            ShouldBeCancelled(task4);
+            await ShouldBeCancelled(task1);
+            await ShouldBeCancelled(task2);
+            await ShouldBeCancelled(task3);
+            await ShouldBeCancelled(task4);
         }
 
         [Fact]
-        public void ShouldStopActorAndNotProcessAnyAlreadyEnqueuedWorkIfStartWorkCancelled()
+        public async Task ShouldStopActorAndNotProcessAnyAlreadyEnqueuedWorkIfStartWorkCancelled()
         {
             var cancellationTokenSource = new CancellationTokenSource();
             var actor = CreateActor(x => x.StartWork = new ActorStartWork(() => { Task.Delay(TimeSpan.FromMinutes(1)).Wait(cancellationTokenSource.Token); }, cancellationTokenSource.Token),
@@ -1014,9 +1014,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             MarkAlreadyStopped();
             cancellationTokenSource.Cancel();
 
-            ShouldBeCancelled(startTask);
-            ShouldBeCancelled(task);
-            ShouldBeCancelled(actor.Enqueue(() => { }));
+            await ShouldBeCancelled(startTask);
+            await ShouldBeCancelled(task);
+            await ShouldBeCancelled(actor.Enqueue(() => { }));
             attempts.Should().Be(0);
         }
 
@@ -1110,7 +1110,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
                     StopWork = new ActorStopWork(() => stopWorkCalled = true)
                 };
 
-            actor.Awaiting(x => x.Start()).Should().Throw<Exception>().WithMessage("Error.");
+            await actor.Awaiting(x => x.Start()).Should().ThrowAsync<Exception>().WithMessage("Error.");
 
             await actor.Stop();
 
@@ -1146,9 +1146,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit
             return actor;
         }
 
-        private static void ShouldBeCancelled(Task task)
+        private static async Task ShouldBeCancelled(Task task)
         {
-            Expect.That(async () => await task).Should().Throw<OperationCanceledException>();
+            await Expect.That(async () => await task).Should().ThrowAsync<OperationCanceledException>();
         }
 
         private void MarkAlreadyStopped()

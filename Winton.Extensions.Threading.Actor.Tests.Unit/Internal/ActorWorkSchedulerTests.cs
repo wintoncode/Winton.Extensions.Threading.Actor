@@ -90,7 +90,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         }
 
         [Fact]
-        public void ShouldBeAbleToSpecifyThatSyncWorkIsLongRunning()
+        public async Task ShouldBeAbleToSpecifyThatSyncWorkIsLongRunning()
         {
             var taskCompletionSource = new TaskCompletionSource<object>();
 
@@ -108,11 +108,11 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     }
                 }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
 
-            taskCompletionSource.Awaiting(x => x.Task).Should().NotThrow();
+            await taskCompletionSource.Awaiting(x => x.Task).Should().NotThrowAsync();
         }
 
         [Fact]
-        public void ShouldBeAbleToSpecifyThatAsyncWorkIsLongRunning()
+        public async Task ShouldBeAbleToSpecifyThatAsyncWorkIsLongRunning()
         {
             var taskCompletionSource = new TaskCompletionSource<object>();
 
@@ -132,7 +132,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     }
                 }, TimeSpan.FromMilliseconds(1000), ActorScheduleOptions.NoInitialDelay | ActorScheduleOptions.WorkIsLongRunning);
 
-            taskCompletionSource.Awaiting(x => x.Task).Should().NotThrow();
+            await taskCompletionSource.Awaiting(x => x.Task).Should().NotThrowAsync();
         }
 
         [Theory]
@@ -266,9 +266,9 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     task = _scheduler.Schedule(async () =>
                                                {
                                                    times.Add(DateTime.UtcNow);
-                                                   
+
                                                    await Task.Yield();
-                                                   
+
                                                    if (times.Count == 3)
                                                    {
                                                        throw new InvalidOperationException("Pah!");
@@ -291,7 +291,7 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
         [Theory]
         [InlineData(WorkType.Async)]
         [InlineData(WorkType.Sync)]
-        public void WhenAnUnhandledErrorOccursInTheWorkTheScheduleShouldStopAndEmitTheError(WorkType workType)
+        public async Task WhenAnUnhandledErrorOccursInTheWorkTheScheduleShouldStopAndEmitTheError(WorkType workType)
         {
             var interval = TimeSpan.FromMilliseconds(100);
             var times = new List<DateTime>();
@@ -326,42 +326,38 @@ namespace Winton.Extensions.Threading.Actor.Tests.Unit.Internal
                     throw new Exception($"Unhandled test case {workType}.");
             }
 
-            Expect.That(async () => await task).Should().Throw<Exception>().WithMessage("Pah!");
+            await Expect.That(async () => await task).Should().ThrowAsync<Exception>().WithMessage("Pah!");
 
             // The schedule should have been cancelled so expect the times list to not be added to
             For.OneSecond(() => times.Should().HaveCount(3));
         }
-        
+
         [Fact]
-        public void SynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
+        public async Task SynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
-            Expect.That(() => _scheduler.Schedule(() => { }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .Should().Throw<ArgumentOutOfRangeException>()
-                  .And.ParamName.Should().Be("interval");
+            await Expect.That(() => _scheduler.Schedule(() => { }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
+                  .Should().ThrowAsync<ArgumentOutOfRangeException>().WithParameterName("interval");
         }
 
         [Fact]
-        public void SynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
+        public async Task SynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
-            Expect.That(() => _scheduler.Schedule((Action)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .Should().Throw<ArgumentNullException>()
-                  .And.ParamName.Should().Be("work");
+            await Expect.That(() => _scheduler.Schedule((Action)null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
+                  .Should().ThrowAsync<ArgumentNullException>().WithParameterName("work");
         }
 
         [Fact]
-        public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
+        public async Task AsynchronousSchedulerExtensionShouldEmitAnyArgumentOutOfRangeExceptions()
         {
-            Expect.That(() => _scheduler.Schedule(async () => { await Task.Delay(10); }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
-                  .Should().Throw<ArgumentOutOfRangeException>()
-                  .And.ParamName.Should().Be("interval");
+            await Expect.That(() => _scheduler.Schedule(async () => { await Task.Delay(10); }, TimeSpan.Zero, ActorScheduleOptions.Default, x => { }))
+                  .Should().ThrowAsync<ArgumentOutOfRangeException>().WithParameterName("interval");
         }
 
         [Fact]
-        public void AsynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
+        public async Task AsynchronousSchedulerExtensionShouldEmitAnyArgumentNullExceptions()
         {
-            Expect.That(() => _scheduler.Schedule(null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
-                  .Should().Throw<ArgumentNullException>()
-                  .And.ParamName.Should().Be("work");
+            await Expect.That(() => _scheduler.Schedule(null, TimeSpan.FromDays(1), ActorScheduleOptions.Default, x => { }))
+                  .Should().ThrowAsync<ArgumentNullException>().WithParameterName("work");
         }
     }
 }
