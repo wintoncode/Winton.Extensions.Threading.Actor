@@ -83,14 +83,19 @@ namespace Winton.Extensions.Threading.Actor.Internal
 
         private static ActorEnqueueOptions GetEnqueueOptions(ActorScheduleOptions actorScheduleOptions)
         {
+            ActorEnqueueOptions result = ActorEnqueueOptions.Default;
+
             if (actorScheduleOptions.HasFlag(ActorScheduleOptions.WorkIsLongRunning))
             {
-                return ActorEnqueueOptions.WorkIsLongRunning;
+                result |= ActorEnqueueOptions.WorkIsLongRunning;
             }
-            else
+
+            if (actorScheduleOptions.HasFlag(ActorScheduleOptions.NoSuppressTransactionScope))
             {
-                return ActorEnqueueOptions.Default;
+                result |= ActorEnqueueOptions.NoSuppressTransactionScope;
             }
+
+            return result;
         }
     }
 }
